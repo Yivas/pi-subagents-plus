@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/Yivas/pi-subagents-plus/security/advisories/new
+    about: Report a vulnerability privately instead of opening a public issue.
+  - name: Upstream pi-subagents
+    url: https://github.com/nicobailon/pi-subagents/issues
+    about: Problems that exist in upstream behavior belong there, where the fix reaches every user.

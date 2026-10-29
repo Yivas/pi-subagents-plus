@@ -1,0 +1,47 @@
+name: Feature request
+description: Propose behavior that pi-subagents-plus does not have today.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open this before writing code for a large change. It is cheaper to agree on the shape here than in a pull request.
+        Features that belong in upstream pi-subagents should be proposed in the [upstream repository](https://github.com/nicobailon/pi-subagents/issues) instead.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you cannot do today, and what it costs you. Concrete situations beat general wishes.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you want instead
+      description: The behavior you have in mind, and how you would trigger it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternative
+    attributes:
+      label: What you tried
+      description: An existing setting, agent, workflow, or instruction that almost covers it, and why it falls short.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: What it touches
+      options:
+        - Tool or agent definition
+        - Workflow or mission
+        - Status, FleetView, or run control
+        - Configuration or settings
+        - Documentation
+        - Something else
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file this
+      options:
+        - label: I searched the open issues for the same request.
+          required: true

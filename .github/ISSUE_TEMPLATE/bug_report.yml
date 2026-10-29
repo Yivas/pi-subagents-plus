@@ -1,0 +1,74 @@
+name: Bug report
+description: Something in pi-subagents-plus does not work the way the documentation says.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report security problems here. Use [private vulnerability reporting](https://github.com/Yivas/pi-subagents-plus/security/advisories/new).
+        If the same problem happens on upstream pi-subagents, report it there instead: a fix upstream reaches every user.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you file this
+      options:
+        - label: I searched the open and closed issues for the same problem.
+          required: true
+        - label: I removed API keys, tokens, and private paths from everything I paste below.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: pi-subagents-plus version
+      description: The version in your Pi package entry, for example `0.84.0-plus.1`.
+    validations:
+      required: true
+  - type: input
+    id: pi-version
+    attributes:
+      label: Pi version
+      description: Output of `pi --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: run-kind
+    attributes:
+      label: Where it happened
+      options:
+        - Foreground child
+        - Background child
+        - Fleet inspector or status
+        - Workflow or mission
+        - Install or setup
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: The prompt, command, or settings that trigger it. A minimal reproduction is worth more than a transcript.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: The `config.json` keys, agent frontmatter, or package entry involved. Omit what does not matter.
+      render: json
+  - type: textarea
+    id: output
+    attributes:
+      label: Logs or errors
+      description: The error, command output, or transcript excerpt that shows the problem.
+      render: shell
