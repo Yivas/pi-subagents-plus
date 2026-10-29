@@ -26,6 +26,25 @@ test("plans server grants from explicit metadata facts and preserves resource fi
 	});
 });
 
+test("trims trailing slashes from a selector without rescanning it", () => {
+	const trimmed = planMcpDirectToolGrant({
+		selectors: ["demo///"],
+		servers: { demo: {} },
+		metadata: { demo: { tools: [{ name: "ping" }] } },
+	});
+	assert.deepEqual(trimmed.selections, [{ name: "demo_ping", selector: "demo/ping" }]);
+
+	// A regex `/+$/` scan is quadratic once the selector ends in anything else: 50,000 slashes
+	// followed by one letter took 2.6 s, and this takes about a tenth of a millisecond.
+	const awkwardSelector = `${"/".repeat(50_000)}a`;
+	const startedAt = performance.now();
+	const grant = planMcpDirectToolGrant({ selectors: [awkwardSelector], servers: {}, metadata: {} });
+	const elapsedMs = performance.now() - startedAt;
+
+	assert.deepEqual(grant, { selections: [], unresolvedSelectors: [awkwardSelector] });
+	assert.ok(elapsedMs < 1_000, `resolving one selector took ${Math.round(elapsedMs)} ms`);
+});
+
 test("plans tool-specific grants and reports unresolved selectors deterministically", () => {
 	const grant = planMcpDirectToolGrant({
 		selectors: ["github/search_repositories", "missing"],
