@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- A provider's extension can now declare the file a child must load to keep that provider, and a launch that keeps the child away from ambient extensions loads exactly that file. Off by default: `subagents.providerChildExtensions` or the agent's own `providerChildExtensions` turns it on, and an off launch, its contract, and its digests stay upstream's. The launch contract reports the derived file in `tools.providerDerivedExtensions`, and a resumed background run replays the record from its recovery descriptor. See [Provider child extensions](docs/agents.md#provider-child-extensions).
+
 ### Changed
 
 - On Node, workflow scripts now run in a fresh permission-restricted process with no inherited startup flags or credentials, and cannot write files or start processes through Node APIs even outside the VM. A supervisor exits when the parent disconnects, including when the script is busy. Bun keeps its existing worker boundary. Thanks to [@XLi-hub](https://github.com/XLi-hub) for #3104.
