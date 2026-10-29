@@ -67,6 +67,7 @@ export interface BuiltinAgentOverrideBase {
 	model?: string;
 	modelProvider?: string;
 	fast?: boolean;
+	providerChildExtensions?: boolean;
 	thinking?: string | false;
 	systemPromptMode: SystemPromptMode;
 	inheritProjectContext: boolean;
@@ -99,6 +100,7 @@ interface BuiltinAgentOverrideConfig {
 	model?: string | false;
 	defaultProvider?: string | false;
 	fast?: boolean;
+	providerChildExtensions?: boolean;
 	thinking?: string | false;
 	systemPromptMode?: SystemPromptMode;
 	inheritProjectContext?: boolean;
@@ -122,7 +124,7 @@ interface BuiltinAgentOverrideConfig {
 /** Every field an `agentOverrides` entry may set; the Record type keeps it equal to BuiltinAgentOverrideConfig. */
 const BUILTIN_OVERRIDE_FIELDS: Record<keyof BuiltinAgentOverrideConfig, true> = {
 	description: true, advertise: true, machine: true, output: true, outputMode: true, defaultReads: true, model: true,
-	defaultProvider: true, fast: true, thinking: true, systemPromptMode: true, inheritProjectContext: true,
+	defaultProvider: true, fast: true, providerChildExtensions: true, thinking: true, systemPromptMode: true, inheritProjectContext: true,
 	inheritGlobalContext: true, inheritSkills: true, defaultContext: true, acceptanceRole: true, disabled: true,
 	systemPrompt: true, skills: true, tools: true, excludeTools: true, allowNestedSubagents: true, allowedAgents: true,
 	extensions: true, subagentOnlyExtensions: true, mutationTools: true, toolBudget: true,
@@ -163,6 +165,8 @@ export interface AgentConfig {
 	model?: string;
 	modelProvider?: string;
 	fast?: boolean;
+	/** Load the extension the model's provider registered for children when this child starts without ambient extensions. */
+	providerChildExtensions?: boolean;
 	thinking?: string | false;
 	systemPromptMode: SystemPromptMode;
 	inheritProjectContext: boolean;
@@ -225,6 +229,8 @@ interface SubagentSettings {
 	defaultSubagentOnlyExtensions?: string[];
 	disableBuiltins?: boolean;
 	disableThinking?: boolean;
+	/** Default for `providerChildExtensions` on every agent that does not set it. */
+	providerChildExtensions?: boolean;
 	modelScope?: ModelScopeConfig;
 }
 
@@ -820,6 +826,7 @@ function cloneOverrideBase(agent: AgentConfig): BuiltinAgentOverrideBase {
 		...(agent.model !== undefined ? { model: agent.model } : {}),
 		...(agent.modelProvider !== undefined ? { modelProvider: agent.modelProvider } : {}),
 		...(agent.fast !== undefined ? { fast: agent.fast } : {}),
+		...(agent.providerChildExtensions !== undefined ? { providerChildExtensions: agent.providerChildExtensions } : {}),
 		...(agent.thinking !== undefined ? { thinking: agent.thinking } : {}),
 		systemPromptMode: agent.systemPromptMode,
 		inheritProjectContext: agent.inheritProjectContext,
@@ -853,6 +860,7 @@ function cloneOverrideValue(override: BuiltinAgentOverrideConfig): BuiltinAgentO
 		...(override.model !== undefined ? { model: override.model } : {}),
 		...(override.defaultProvider !== undefined ? { defaultProvider: override.defaultProvider } : {}),
 		...(override.fast !== undefined ? { fast: override.fast } : {}),
+		...(override.providerChildExtensions !== undefined ? { providerChildExtensions: override.providerChildExtensions } : {}),
 		...(override.thinking !== undefined ? { thinking: override.thinking } : {}),
 		...(override.systemPromptMode !== undefined ? { systemPromptMode: override.systemPromptMode } : {}),
 		...(override.inheritProjectContext !== undefined ? { inheritProjectContext: override.inheritProjectContext } : {}),
@@ -1115,6 +1123,11 @@ function parseBuiltinOverrideEntry(
 		else throw new Error(`Builtin override '${name}' in '${filePath}' has invalid 'fast'; expected a boolean.`);
 	}
 
+	if ("providerChildExtensions" in input) {
+		if (typeof input.providerChildExtensions === "boolean") override.providerChildExtensions = input.providerChildExtensions;
+		else throw new Error(`Builtin override '${name}' in '${filePath}' has invalid 'providerChildExtensions'; expected a boolean.`);
+	}
+
 	if ("thinking" in input) {
 		const level = THINKING_LEVELS.find((candidate) => candidate === input.thinking);
 		if (level !== undefined || input.thinking === false) override.thinking = level ?? false;
@@ -1258,6 +1271,14 @@ function readSubagentSettings(filePath: string | null): SubagentSettings {
 			throw new Error(`Subagent settings in '${filePath}' have invalid 'disableThinking'; expected a boolean.`);
 		}
 	}
+	let providerChildExtensions: boolean | undefined;
+	if ("providerChildExtensions" in subagentsObject) {
+		if (typeof subagentsObject.providerChildExtensions === "boolean") {
+			providerChildExtensions = subagentsObject.providerChildExtensions;
+		} else {
+			throw new Error(`Subagent settings in '${filePath}' have invalid 'providerChildExtensions'; expected a boolean.`);
+		}
+	}
 	let defaultModel: string | undefined;
 	if ("defaultModel" in subagentsObject) {
 		if (typeof subagentsObject.defaultModel === "string" && subagentsObject.defaultModel.trim()) {
@@ -1341,6 +1362,7 @@ function readSubagentSettings(filePath: string | null): SubagentSettings {
 		...(agentExcludeDirs !== undefined ? { agentExcludeDirs } : {}),
 		...(disableBuiltins !== undefined ? { disableBuiltins } : {}),
 		...(disableThinking !== undefined ? { disableThinking } : {}),
+		...(providerChildExtensions !== undefined ? { providerChildExtensions } : {}),
 		...(modelScope !== undefined ? { modelScope } : {}),
 	};
 	if (agentOverrides && typeof agentOverrides === "object" && !Array.isArray(agentOverrides)) {
@@ -1472,6 +1494,27 @@ function applySubagentDefaultExtensions(agents: AgentConfig[], defaultExtensions
 	});
 }
 
+function resolveSubagentProviderChildExtensions(
+	userSettings: SubagentSettings,
+	projectSettings: SubagentSettings,
+	projectSettingsPath: string | null,
+): boolean | undefined {
+	if (projectSettingsPath && projectSettings.providerChildExtensions !== undefined) return projectSettings.providerChildExtensions;
+	return userSettings.providerChildExtensions;
+}
+
+/** Applies the settings default only where the agent or its overrides said nothing. */
+function applySubagentProviderChildExtensions(agents: AgentConfig[], providerChildExtensions: boolean | undefined): AgentConfig[] {
+	if (providerChildExtensions === undefined) return agents;
+	return agents.map((agent) => {
+		if (agent.providerChildExtensions !== undefined) return agent;
+		const next = { ...agent, providerChildExtensions };
+		const frontmatterFields = agentFrontmatterFields.get(agent);
+		if (frontmatterFields) agentFrontmatterFields.set(next, frontmatterFields);
+		return next;
+	});
+}
+
 function resolveSubagentDefaultSubagentOnlyExtensions(
 	userSettings: SubagentSettings,
 	projectSettings: SubagentSettings,
@@ -1499,14 +1542,15 @@ function applySubagentDefaults(
 	defaultThinking: string | undefined,
 	defaultExtensions: string[] | undefined,
 	defaultSubagentOnlyExtensions: string[] | undefined,
+	providerChildExtensions: boolean | undefined,
 ): AgentConfig[] {
-	return applySubagentDefaultSubagentOnlyExtensions(
+	return applySubagentProviderChildExtensions(applySubagentDefaultSubagentOnlyExtensions(
 		applySubagentDefaultExtensions(
 			applySubagentDefaultThinking(applySubagentDefaultModel(agents, defaultModel, defaultProvider), defaultThinking),
 			defaultExtensions,
 		),
 		defaultSubagentOnlyExtensions,
-	);
+	), providerChildExtensions);
 }
 
 function applyToolsOverride(target: AgentConfig, toolsOverride: string[] | false | "inherit"): void {
@@ -1555,6 +1599,7 @@ function applyBuiltinOverride(
 		else next.modelProvider = override.defaultProvider;
 	}
 	if (override.fast !== undefined) next.fast = override.fast;
+	if (override.providerChildExtensions !== undefined) next.providerChildExtensions = override.providerChildExtensions;
 	if (override.thinking !== undefined) { if (override.thinking === false) delete next.thinking; else next.thinking = override.thinking; }
 	if (override.systemPromptMode !== undefined) next.systemPromptMode = override.systemPromptMode;
 	if (override.inheritProjectContext !== undefined) next.inheritProjectContext = override.inheritProjectContext;
@@ -2285,6 +2330,12 @@ function loadAgentsFromDefinitionFiles(files: AgentDefinitionFile[], source: Age
 			else if (frontmatter.fast === "false") fast = false;
 			else throw new Error(`Agent '${localName}' has invalid fast frontmatter; expected true or false.`);
 		}
+		let providerChildExtensions: boolean | undefined;
+		if (frontmatter.providerChildExtensions !== undefined) {
+			if (frontmatter.providerChildExtensions === "true") providerChildExtensions = true;
+			else if (frontmatter.providerChildExtensions === "false") providerChildExtensions = false;
+			else throw new Error(`Agent '${localName}' has invalid providerChildExtensions frontmatter; expected true or false.`);
+		}
 		let allowNestedSubagents: boolean | undefined;
 		if (frontmatter.allowNestedSubagents !== undefined) {
 			if (frontmatter.allowNestedSubagents === "true") allowNestedSubagents = true;
@@ -2350,6 +2401,7 @@ function loadAgentsFromDefinitionFiles(files: AgentDefinitionFile[], source: Age
 			...(mcpDirectTools.length > 0 ? { mcpDirectTools } : {}),
 			...(frontmatter.model !== undefined ? { model: frontmatter.model } : {}),
 			...(fast !== undefined ? { fast } : {}),
+			...(providerChildExtensions !== undefined ? { providerChildExtensions } : {}),
 			...(frontmatter.thinking !== undefined ? { thinking: frontmatter.thinking === "false" ? false : frontmatter.thinking } : {}),
 			systemPromptMode,
 			inheritProjectContext,
@@ -2905,7 +2957,8 @@ function configuredAgentsForScope(sources: AgentDiscoverySources, scope: AgentSc
 	const maxThinking = resolveSubagentMaxThinking(userSettings, projectSettings, sources.projectSettingsPath);
 	const defaultExtensions = resolveSubagentDefaultExtensions(userSettings, projectSettings, sources.projectSettingsPath);
 	const defaultSubagentOnlyExtensions = resolveSubagentDefaultSubagentOnlyExtensions(userSettings, projectSettings, sources.projectSettingsPath);
-	const applyDefaults = (agents: AgentConfig[]): AgentConfig[] => applySubagentDefaults(agents, defaultModel, defaultProvider, defaultThinking, defaultExtensions, defaultSubagentOnlyExtensions);
+	const providerChildExtensions = resolveSubagentProviderChildExtensions(userSettings, projectSettings, sources.projectSettingsPath);
+	const applyDefaults = (agents: AgentConfig[]): AgentConfig[] => applySubagentDefaults(agents, defaultModel, defaultProvider, defaultThinking, defaultExtensions, defaultSubagentOnlyExtensions, providerChildExtensions);
 	const builtin = applyBuiltinOverrides(applyDefaults(sources.builtinLoaded.agents), userSettings, projectSettings, sources.userSettingsPath, sources.projectSettingsPath);
 	const user = applyCustomAgentOverrides(
 		applyDefaults(scope === "project" ? [] : sources.userLoaded.flatMap((loaded) => loaded.loaded.agents)),
@@ -3063,12 +3116,13 @@ function discoverAgentsUncached(cwd: string, scope: AgentScope, preferredModelPr
 	const maxThinking = resolveSubagentMaxThinking(userSettings, projectSettings, projectSettingsPath);
 	const defaultExtensions = resolveSubagentDefaultExtensions(userSettings, projectSettings, projectSettingsPath);
 	const defaultSubagentOnlyExtensions = resolveSubagentDefaultSubagentOnlyExtensions(userSettings, projectSettings, projectSettingsPath);
+	const providerChildExtensions = resolveSubagentProviderChildExtensions(userSettings, projectSettings, projectSettingsPath);
 	const modelScope = projectSettings.modelScope ?? userSettings.modelScope;
 	const packageSubagentPaths = collectPackageSubagentPaths(effectiveCwd, { includeUser: scope !== "project", includeProject: scope !== "user", globalNpmRoot: options.globalNpmRoot });
 	const isExcluded = agentExclusions(agentExclusionRoots(userSettingsPath, projectSettingsPath));
 	const directories: AgentDefinitionDirectoryReport[] = [reportAgentDefinitionDirectory("builtin", BUILTIN_AGENTS_DIR, BUILTIN_AGENT_DEFINITION_INSPECTION)];
 	const builtinLoaded = loadAgentsFromDefinitionFiles(BUILTIN_AGENT_DEFINITION_FILES, "builtin");
-	const applyDefaults = (agents: AgentConfig[]): AgentConfig[] => applySubagentDefaults(agents, defaultModel, defaultProvider, defaultThinking, defaultExtensions, defaultSubagentOnlyExtensions);
+	const applyDefaults = (agents: AgentConfig[]): AgentConfig[] => applySubagentDefaults(agents, defaultModel, defaultProvider, defaultThinking, defaultExtensions, defaultSubagentOnlyExtensions, providerChildExtensions);
 	const builtinAgents = applyBuiltinOverrides(applyDefaults(builtinLoaded.agents), userSettings, projectSettings, userSettingsPath, projectSettingsPath);
 	const userScanDirs = settingsAgentScanDirs(userSettings.agentScanDirs ?? [], isExcluded);
 	const projectScanDirs = settingsAgentScanDirs(projectSettings.agentScanDirs ?? [], isExcluded);
