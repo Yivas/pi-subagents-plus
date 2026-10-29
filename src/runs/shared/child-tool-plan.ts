@@ -26,6 +26,8 @@ import { resolveRuntimeModulePath, RUNTIME_MODULE_EXTENSIONS } from "../../share
 import type { PermissionRules } from "./permissions.ts";
 import { snapshotRequiredChildExtensions, type RequiredChildExtensionSnapshot } from "../../shared/required-child-extensions.ts";
 import {
+	assertProviderChildExtensionNotDenied,
+	childDisablesAmbientExtensions,
 	extensionPathKey,
 	snapshotProviderChildExtensionReference,
 	type ProviderChildExtensionReference,
@@ -433,17 +435,11 @@ export function resolvePiLaunchToolPlan(
 		...(fanoutAuthorized ? [resolveRuntimeModulePath(FANOUT_CHILD_EXTENSION_DIR, "fanout-child")] : []),
 		...(permSystemExt ? [permSystemExt] : []),
 	];
-	const disableAmbientExtensions =
-		capabilityCeiling?.denyExtensions === true ||
-		input.extensions !== undefined;
-	// A child that loads no ambient extension keeps only what its provider's
-	// extension declared; an agent that already lists that file keeps its own
-	// entry instead of gaining a duplicate.
-	const declaredProviderChildExtension = snapshotProviderChildExtensionReference(input.providerChildExtension);
-	const providerChildExtension = declaredProviderChildExtension && disableAmbientExtensions ? declaredProviderChildExtension : undefined;
-	if (providerChildExtension && capabilityCeiling?.denyExtensions) {
-		throw new Error(`Capability ceiling from ${capabilityCeiling.sources.join(", ") || "unknown source"} denies extensions, but provider '${providerChildExtension.provider}' registered child extension '${providerChildExtension.path}'. Relax the ceiling or use a model whose provider needs no extension in the child.`);
-	}
+	const disableAmbientExtensions = childDisablesAmbientExtensions(input);
+	// The launching session already decided that this child needs its provider's
+	// file; the plan only forwards it and refuses to drop it under a ceiling.
+	const providerChildExtension = snapshotProviderChildExtensionReference(input.providerChildExtension);
+	if (providerChildExtension) assertProviderChildExtensionNotDenied(providerChildExtension, capabilityCeiling);
 	const listedExtensionKeys = new Set(
 		[...toolExtensionPaths, ...(input.extensions ?? []), ...(input.subagentOnlyExtensions ?? [])].map(extensionPathKey),
 	);

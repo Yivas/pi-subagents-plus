@@ -142,24 +142,144 @@ export function snapshotProviderChildExtensionReference(value: unknown, label = 
 	});
 }
 
-export interface ResolveLaunchProviderChildExtensionInput {
-	/** The operator's switch for this launch, from the agent or from `subagents.providerChildExtensions`. */
-	enabled: boolean;
+/**
+ * The switch and the explicit list that decide one launch. The global
+ * `subagents.providerChildExtensions` default reaches this value through the
+ * agent, so a launch never re-reads settings.
+ */
+export interface ProviderChildExtensionAgent {
+	providerChildExtensions?: boolean;
+	extensions?: string[];
+}
+
+/**
+ * A child keeps only the files its launch names when the agent lists
+ * extensions or a ceiling denies them. One definition, because the plan and the
+ * provider resolution must agree on it.
+ */
+export function childDisablesAmbientExtensions(input: {
+	extensions?: string[];
+	capabilityCeiling?: { denyExtensions?: boolean };
+}): boolean {
+	return input.capabilityCeiling?.denyExtensions === true || input.extensions !== undefined;
+}
+
+/**
+ * A ceiling that denies extensions cannot drop a file its provider needs: the
+ * child would start without the provider that serves its model, so the launch
+ * fails instead of pretending the restriction held.
+ */
+export function assertProviderChildExtensionNotDenied(
+	reference: ProviderChildExtensionReference,
+	capabilityCeiling: { denyExtensions?: boolean; sources: string[] } | undefined,
+): void {
+	if (!capabilityCeiling?.denyExtensions) return;
+	throw new Error(
+		`Capability ceiling from ${capabilityCeiling.sources.join(", ") || "unknown source"} denies extensions, but provider '${reference.provider}' registered child extension '${reference.path}'. Relax the ceiling or use a model whose provider needs no extension in the child.`,
+	);
+}
+
+/** Which model's provider derived the file. Published authority, never agent-supplied. */
+export interface ProviderChildExtensionProvenance {
+	path: string;
+	provider: string;
+	model: string;
+}
+
+export interface ProviderChildExtensionLaunch {
+	/** The reference a launch forwards; the plan re-validates exactly these fields. */
+	reference: ProviderChildExtensionReference;
+	provenance: ProviderChildExtensionProvenance;
+}
+
+export interface ResolveProviderChildExtensionLaunchInput {
+	agent: ProviderChildExtensionAgent;
 	/** Model the child will run, with any thinking suffix. */
 	model?: string;
 	availableModels?: readonly ModelInfo[];
 	preferredProvider?: string;
+	capabilityCeiling?: { denyExtensions?: boolean; sources: string[] };
+	/** A runner outside this process cannot load a file from this filesystem. */
+	externalRunner: boolean;
+	/** A saved machine runs the child on another host, with its own file system. */
+	remoteMachine: boolean;
 }
 
 /**
- * The extension a launch must attach for its model's provider, or undefined
- * when the switch is off, the model does not resolve, or no extension declared
- * one for that provider. The launch plan decides whether the child actually
- * needs it, because only the plan knows if the child starts without ambient
- * extensions.
+ * The single place that decides whether a launch attaches its provider's child
+ * extension: switch, host, ceiling, whether the child starts without ambient
+ * extensions, and the registry entry for the model's provider. Undefined and a
+ * launch forwards nothing, which is every launch upstream performs.
  */
-export function resolveLaunchProviderChildExtension(input: ResolveLaunchProviderChildExtensionInput): ProviderChildExtension | undefined {
-	if (!input.enabled) return undefined;
-	const provider = findModelInfo(input.model, input.availableModels, input.preferredProvider)?.provider;
-	return resolveProviderChildExtension(provider);
+export function resolveProviderChildExtensionLaunch(input: ResolveProviderChildExtensionLaunchInput): ProviderChildExtensionLaunch | undefined {
+	if (input.agent.providerChildExtensions !== true) return undefined;
+	if (input.externalRunner || input.remoteMachine) return undefined;
+	if (!input.model) return undefined;
+	const model = findModelInfo(input.model, input.availableModels, input.preferredProvider);
+	const entry = model ? resolveProviderChildExtension(model.provider) : undefined;
+	if (!entry) return undefined;
+	// A child that keeps ambient extensions loads the provider's own extension anyway.
+	if (!childDisablesAmbientExtensions({ extensions: input.agent.extensions, capabilityCeiling: input.capabilityCeiling })) return undefined;
+	const reference = Object.freeze({ provider: entry.provider, path: entry.path });
+	assertProviderChildExtensionNotDenied(reference, input.capabilityCeiling);
+	return {
+		reference,
+		provenance: Object.freeze({ path: entry.path, provider: entry.provider, model: input.model }),
+	};
+}
+
+/**
+ * What a run recorded about this resolution, so a resumed launch replays it
+ * instead of re-reading the switch, the settings, or a registry this process
+ * does not have. Absence of the field means the run never attached one.
+ */
+export interface ProviderChildExtensionResumeSnapshot extends ProviderChildExtensionReference {
+	/** The switch as it stood at launch, so the resumed definition digest does not follow current settings. */
+	enabled: boolean;
+	model?: string;
+}
+
+export function snapshotProviderChildExtensionResumeSnapshot(value: unknown, label = "Provider child extension resume snapshot"): ProviderChildExtensionResumeSnapshot | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object with provider and path.`);
+	const entry = value as Record<string, unknown>;
+	for (const key of Object.keys(entry)) {
+		if (key !== "provider" && key !== "path" && key !== "enabled" && key !== "model") throw new Error(`${label} accepts only provider, path, enabled, and model.`);
+	}
+	if (typeof entry.enabled !== "boolean") throw new Error(`${label} requires a boolean enabled field.`);
+	if (entry.model !== undefined && (typeof entry.model !== "string" || !entry.model.trim())) throw new Error(`${label} model must be a non-empty string when present.`);
+	const reference = snapshotProviderChildExtensionReference({ provider: entry.provider, path: entry.path }, label)!;
+	return Object.freeze({ ...reference, enabled: entry.enabled, ...(entry.model === undefined ? {} : { model: entry.model as string }) });
+}
+
+/**
+ * Record what a launch resolved, so a resume replays it instead of re-reading
+ * settings or a registry this process does not have.
+ */
+export function providerChildExtensionResumeSnapshot(launch: ProviderChildExtensionLaunch | undefined): ProviderChildExtensionResumeSnapshot | undefined {
+	if (!launch) return undefined;
+	return Object.freeze({ enabled: true, provider: launch.reference.provider, path: launch.reference.path, model: launch.provenance.model });
+}
+
+/**
+ * Replay a recorded resolution. A path that no longer exists fails the resume
+ * by name: dropping it would launch a child without the provider it recorded.
+ */
+export function resumeProviderChildExtensionLaunch(snapshot: ProviderChildExtensionResumeSnapshot | undefined): ProviderChildExtensionLaunch | undefined {
+	if (!snapshot) return undefined;
+	if (!snapshot.enabled) return undefined;
+	let isFile = false;
+	try {
+		isFile = fs.statSync(snapshot.path).isFile();
+	} catch {
+		isFile = false;
+	}
+	if (!isFile) {
+		throw new Error(`Cannot resume with provider child extension '${snapshot.path}': the file recorded for provider '${snapshot.provider}' no longer exists. Re-register that provider's extension or start a new run.`);
+	}
+	const reference = Object.freeze({ provider: snapshot.provider, path: snapshot.path });
+	return {
+		reference,
+		provenance: Object.freeze({ path: snapshot.path, provider: snapshot.provider, model: snapshot.model ?? "" }),
+	};
 }

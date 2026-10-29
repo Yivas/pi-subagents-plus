@@ -186,6 +186,8 @@ export interface AgentConfig {
 	skillPath?: string[];
 	extensions?: string[];
 	extensionsFromDefault?: boolean;
+	/** The switch came from `subagents.providerChildExtensions`, not from this definition; the definition digest ignores it. */
+	providerChildExtensionsFromDefault?: boolean;
 	subagentOnlyExtensions?: string[];
 	mutationTools?: string[];
 	output?: string;
@@ -826,7 +828,7 @@ function cloneOverrideBase(agent: AgentConfig): BuiltinAgentOverrideBase {
 		...(agent.model !== undefined ? { model: agent.model } : {}),
 		...(agent.modelProvider !== undefined ? { modelProvider: agent.modelProvider } : {}),
 		...(agent.fast !== undefined ? { fast: agent.fast } : {}),
-		...(agent.providerChildExtensions !== undefined ? { providerChildExtensions: agent.providerChildExtensions } : {}),
+		...(agent.providerChildExtensions !== undefined && !agent.providerChildExtensionsFromDefault ? { providerChildExtensions: agent.providerChildExtensions } : {}),
 		...(agent.thinking !== undefined ? { thinking: agent.thinking } : {}),
 		systemPromptMode: agent.systemPromptMode,
 		inheritProjectContext: agent.inheritProjectContext,
@@ -1508,7 +1510,7 @@ function applySubagentProviderChildExtensions(agents: AgentConfig[], providerChi
 	if (providerChildExtensions === undefined) return agents;
 	return agents.map((agent) => {
 		if (agent.providerChildExtensions !== undefined) return agent;
-		const next = { ...agent, providerChildExtensions };
+		const next = { ...agent, providerChildExtensions, providerChildExtensionsFromDefault: true };
 		const frontmatterFields = agentFrontmatterFields.get(agent);
 		if (frontmatterFields) agentFrontmatterFields.set(next, frontmatterFields);
 		return next;

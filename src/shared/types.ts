@@ -19,6 +19,7 @@ import type { ExtensionBindings } from "../runs/shared/extension-bindings.ts";
 import type { WorkflowChildPermitContext } from "./workflow-child-permit.ts";
 import type { WatchdogWarningDetails } from "../watchdog/types.ts";
 import type { RequiredChildExtensionSnapshot } from "./required-child-extensions.ts";
+import type { ProviderChildExtensionResumeSnapshot } from "./provider-child-extensions.ts";
 import type { RecordedPid } from "../runs/background/stale-run-reconciler.ts";
 import type { WorkflowStopCause } from "../workflows/workflow-stop-cause.ts";
 
@@ -835,6 +836,11 @@ export interface SteeringRecoveryDescriptor {
 	launchContractDigest?: string;
 	extensionBindings?: ExtensionBindings;
 	requiredExtensions?: RequiredChildExtensionSnapshot;
+	/**
+	 * The provider child extension this run launched with, so a resume replays it
+	 * instead of re-reading the switch, the settings, or the live registry.
+	 */
+	providerChildExtension?: ProviderChildExtensionResumeSnapshot;
 	runFanoutBudget: RunFanoutBudgetDescriptor;
 	sourceRunId: string;
 	agentContract?: AgentContract;

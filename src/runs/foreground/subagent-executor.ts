@@ -2186,6 +2186,7 @@ async function resumeAsyncRun(input: {
 			worktreeBaseDir: input.deps.config.worktreeBaseDir,
 			baseRef: input.params.baseRef ?? target.recoveryDescriptor?.baseRef,
 			...(recoveryDescriptor?.requiredExtensions ? { requiredExtensions: recoveryDescriptor.requiredExtensions } : {}),
+			...(recoveryDescriptor?.providerChildExtension ? { providerChildExtension: recoveryDescriptor.providerChildExtension } : {}),
 			worktreeProvider: input.deps.config.worktreeProvider,
 			worktreeBranchPrefix: input.deps.config.worktreeBranchPrefix,
 			controlConfig: resolveControlConfig(input.deps.config.control, input.params.control),

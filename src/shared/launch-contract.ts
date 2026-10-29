@@ -51,6 +51,11 @@ export function projectAgentDefinition(agent: AgentConfig): Record<string, unkno
 		model: agent.model,
 		modelProvider: agent.modelProvider,
 		fast: agent.fast,
+		// Additive and omitted when unset, so a definition that never set it keeps
+		// the digest upstream computes. A value inherited from
+		// `subagents.providerChildExtensions` is not the author's definition and
+		// stays out.
+		...(agent.providerChildExtensionsFromDefault ? {} : { providerChildExtensions: agent.providerChildExtensions }),
 		thinking: agent.thinking,
 		tools: agent.tools,
 		excludeTools: agent.excludeTools,
