@@ -12,7 +12,7 @@ const registerExtension = process.env[HERDR_PI_MODE_ENV] === "1"
 export default function registerSubagentExtension(pi: ExtensionAPI): void {
 	const installedVersion = readInstalledPackageVersion();
 	if (installedVersion !== loadedPackageVersion) {
-		throw new Error(`pi-subagents ${installedVersion} is installed, but this Pi process still has ${loadedPackageVersion} loaded. Restart Pi to load the update; /reload cannot replace extension modules that Node has already loaded.`);
+		throw new Error(`pi-subagents-plus ${installedVersion} is installed, but this Pi process still has ${loadedPackageVersion} loaded. Restart Pi to load the update; /reload cannot replace extension modules that Node has already loaded.`);
 	}
 	registerExtension?.(pi);
 }

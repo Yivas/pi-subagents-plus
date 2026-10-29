@@ -39,9 +39,9 @@ test("the root entrypoint exposes the runtime error flag to TypeScript consumers
 	const consumerRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pi-subagents-types-"));
 	try {
 		fs.writeFileSync(path.join(consumerRoot, "consumer.ts"), `
-import "pi-subagents";
+import "pi-subagents-plus";
 import type { AgentToolResult } from "@earendil-works/pi-agent-core";
-import { registerWorkflowResource, type RegisterWorkflowResourceInput, type WorkflowResourceDefinition, type WorkflowResourceRegistration } from "pi-subagents/workflow-resources";
+import { registerWorkflowResource, type RegisterWorkflowResourceInput, type WorkflowResourceDefinition, type WorkflowResourceRegistration } from "pi-subagents-plus/workflow-resources";
 
 const definition: WorkflowResourceDefinition = {
 	name: "consumer.check", version: 1,
@@ -74,8 +74,8 @@ void result.isError;
 				allowImportingTsExtensions: true,
 				baseUrl: consumerRoot,
 				paths: {
-					"pi-subagents": [path.join(projectRoot, "index.ts")],
-					"pi-subagents/workflow-resources": [path.join(projectRoot, "src/api/workflow-resources.ts")],
+					"pi-subagents-plus": [path.join(projectRoot, "index.ts")],
+					"pi-subagents-plus/workflow-resources": [path.join(projectRoot, "src/api/workflow-resources.ts")],
 				"@earendil-works/pi-agent-core": [path.join(projectRoot, "node_modules", "@earendil-works", "pi-agent-core", "dist", "index.d.ts")],
 				},
 			},
@@ -137,49 +137,49 @@ test("published extension APIs use supported package entrypoints", async () => {
 		"./shared-types": "./src/api/shared-types.ts",
 		"./project-panes": "./src/api/project-panes.ts",
 	});
-	const agents = await import("pi-subagents/agents");
+	const agents = await import("pi-subagents-plus/agents");
 	assert.equal(agents.RUNTIME_AGENT_REGISTER_EVENT, "pi-subagents:runtime-agent-register:v1");
 	assert.equal(agents.RUNTIME_AGENT_REGISTER_VERSION, 1);
 	assert.equal(typeof agents.registerAgentViaEvents, "function");
-	const inspectors = await import("pi-subagents/inspectors");
+	const inspectors = await import("pi-subagents-plus/inspectors");
 	assert.equal(inspectors.INSPECTOR_REGISTER_EVENT, "pi-subagents:inspector-register:v1");
 	assert.deepEqual(Object.keys(inspectors).sort(), ["INSPECTOR_REGISTER_EVENT", "registerInspector"]);
-	const backgroundWork = await import("pi-subagents/background-work");
+	const backgroundWork = await import("pi-subagents-plus/background-work");
 	assert.equal(backgroundWork.BACKGROUND_WORK_PROTOCOL_VERSION, 1);
 	assert.equal(backgroundWork.BACKGROUND_WORK_REGISTRY_KEY, "pi-subagents.background-work.v1");
-	const externalJobProvider = await import("pi-subagents/external-job-provider");
+	const externalJobProvider = await import("pi-subagents-plus/external-job-provider");
 	assert.equal(externalJobProvider.EXTERNAL_JOB_PROVIDER_PROTOCOL_VERSION, 1);
 	assert.equal(externalJobProvider.EXTERNAL_JOB_PROVIDER_REGISTRY_KEY, "pi-subagents.external-job-providers.v1");
 	assert.equal(typeof externalJobProvider.registerExternalJobProvider, "function");
-	const externalRuns = await import("pi-subagents/external-runs");
+	const externalRuns = await import("pi-subagents-plus/external-runs");
 	assert.equal(externalRuns.EXTERNAL_RUN_REGISTRY_VERSION, 2);
 	assert.equal(typeof externalRuns.registerExternalRun, "function");
 	assert.equal(typeof externalRuns.updateExternalRun, "function");
 	assert.equal(typeof externalRuns.snapshotExternalRuns, "function");
 	assert.equal(typeof externalRuns.unregisterExternalRun, "function");
-	const capability = await import("pi-subagents/capability-ceiling");
-	const workflowResources = await import("pi-subagents/workflow-resources");
+	const capability = await import("pi-subagents-plus/capability-ceiling");
+	const workflowResources = await import("pi-subagents-plus/workflow-resources");
 	assert.deepEqual(Object.keys(workflowResources), ["registerWorkflowResource"]);
 	assert.equal(typeof workflowResources.registerWorkflowResource, "function");
 	assert.equal(capability.SUBAGENT_CAPABILITY_CEILING_VERSION, 1);
 	assert.equal(capability.SUBAGENT_CAPABILITY_CEILING_REGISTRY_KEY, "pi-subagents.capability-ceiling.v1");
-	const delegation = await import("pi-subagents/delegation");
+	const delegation = await import("pi-subagents-plus/delegation");
 	assert.equal(delegation.SUBAGENT_DELEGATION_REQUEST_EVENT, "prompt-template:subagent:request");
-	const preflight = await import("pi-subagents/preflight");
+	const preflight = await import("pi-subagents-plus/preflight");
 	assert.equal(preflight.SUBAGENT_LAUNCH_CONTRACT_VERSION, 3);
 	assert.equal(typeof preflight.resolveSubagentLaunchContract, "function");
-	const controlChannel = await import("pi-subagents/control-channel");
+	const controlChannel = await import("pi-subagents-plus/control-channel");
 	assert.equal(typeof controlChannel.requestAsyncStop, "function");
-	const intercomBridge = await import("pi-subagents/intercom-bridge");
+	const intercomBridge = await import("pi-subagents-plus/intercom-bridge");
 	assert.equal(typeof intercomBridge.resolveIntercomSessionTarget, "function");
-	const childToolPlan = await import("pi-subagents/child-tool-plan");
+	const childToolPlan = await import("pi-subagents-plus/child-tool-plan");
 	assert.equal(typeof childToolPlan.resolvePiLaunchToolPlan, "function");
 	assert.deepEqual(Object.keys(childToolPlan).sort(), ["resolvePiLaunchToolPlan"]);
-	const sharedTypes = await import("pi-subagents/shared-types");
+	const sharedTypes = await import("pi-subagents-plus/shared-types");
 	assert.equal(typeof sharedTypes.wrapForkTask, "function");
 	assert.equal(typeof sharedTypes.DEFAULT_FORK_PREAMBLE, "string");
 	assert.equal("TEMP_ROOT_DIR" in sharedTypes, false);
-	const projectPanes = await import("pi-subagents/project-panes");
+	const projectPanes = await import("pi-subagents-plus/project-panes");
 	assert.equal(projectPanes.PROJECT_PANES_API_VERSION, 1);
 	assert.equal(typeof projectPanes.openProjectPane, "function");
 	assert.equal(typeof projectPanes.getProjectPaneStatus, "function");

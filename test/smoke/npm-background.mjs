@@ -14,7 +14,7 @@ const npmRoot = process.argv[2];
 const root = process.argv[3];
 assert.ok(npmRoot && path.isAbsolute(npmRoot));
 assert.ok(root && path.isAbsolute(root) && !fs.existsSync(root), "fresh artifact root required");
-const installed = path.join(npmRoot, "extension/node_modules/pi-subagents");
+const installed = path.join(npmRoot, "extension/node_modules/pi-subagents-plus");
 const sdk = "host/node_modules/@earendil-works/pi-coding-agent";
 const version = JSON.parse(fs.readFileSync(path.join(npmRoot, sdk, "package.json"), "utf8")).version;
 assert.equal(version, "1.2.0");

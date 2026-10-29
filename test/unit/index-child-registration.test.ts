@@ -1711,7 +1711,7 @@ describe("subagent extension child mode", () => {
 			encoding: "utf-8",
 		});
 		const loaded = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf-8")).version;
-		assert.equal(output.trim(), `pi-subagents 999.0.0 is installed, but this Pi process still has ${loaded} loaded. Restart Pi to load the update; /reload cannot replace extension modules that Node has already loaded.`);
+		assert.equal(output.trim(), `pi-subagents-plus 999.0.0 is installed, but this Pi process still has ${loaded} loaded. Restart Pi to load the update; /reload cannot replace extension modules that Node has already loaded.`);
 	});
 
 	it("does not double-register the child-safe subagent tool when index and fanout-child both load", () => {

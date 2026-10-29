@@ -1,6 +1,6 @@
 {
-  "name": "pi-subagents",
-  "version": "0.84.0",
+  "name": "pi-subagents-plus",
+  "version": "0.84.0-plus.1",
   "private": true,
   "description": "Pi extension for single-agent delegation and scripted multi-agent workflows",
   "author": "Nico Bailon",
@@ -26,11 +26,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nicobailon/pi-subagents.git"
+    "url": "git+https://github.com/Yivas/pi-subagents-plus.git"
   },
-  "homepage": "https://github.com/nicobailon/pi-subagents#readme",
+  "homepage": "https://github.com/Yivas/pi-subagents-plus#readme",
   "bugs": {
-    "url": "https://github.com/nicobailon/pi-subagents/issues"
+    "url": "https://github.com/Yivas/pi-subagents-plus/issues"
   },
   "keywords": [
     "pi-package",
@@ -43,7 +43,7 @@
     "cli"
   ],
   "bin": {
-    "pi-subagents": "install.mjs"
+    "pi-subagents-plus": "install.mjs"
   },
   "files": [
     "index.ts",
