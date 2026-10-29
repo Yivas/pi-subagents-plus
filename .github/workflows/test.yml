@@ -1,6 +1,8 @@
 name: Tests
 
 on:
+  # Keep an explicit recovery trigger when a fork does not receive automatic runs.
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
