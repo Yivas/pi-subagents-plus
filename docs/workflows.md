@@ -283,7 +283,7 @@ const results = await runs.all(items.map((item) => ({ key: item.key, agent: "cla
 const routed = results.map((r, i) => ({ key: items[i].key, ...JSON.parse(r.output) }));
 ```
 
-Command-runner agents are async-only; workflows launch children async by default, but a direct `async: false` call is refused. The runner gets only the assembled prompt, never a forked transcript, so keep `inheritProjectContext` and `inheritGlobalContext` off unless the command wants that text. See [examples/typed-gate](https://github.com/nicobailon/pi-subagents/tree/main/examples/typed-gate) for a runnable version of both shapes.
+Command-runner agents are async-only; workflows launch children async by default, but a direct `async: false` call is refused. The runner gets only the assembled prompt, never a forked transcript, so keep `inheritProjectContext` and `inheritGlobalContext` off unless the command wants that text. See [examples/typed-gate](https://github.com/Yivas/pi-subagents-plus/tree/main/examples/typed-gate) for a runnable version of both shapes.
 
 ### Host command steps
 

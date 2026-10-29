@@ -207,7 +207,7 @@ The package's prompt shortcuts, such as `/parallel-review` and `/review-loop`, a
 ```json
 {
   "packages": [
-    { "source": "npm:pi-subagents", "prompts": [], "skills": ["!council-mode"] }
+    { "source": "npm:pi-subagents-plus@0.84.0-plus.1", "prompts": [], "skills": ["!council-mode"] }
   ],
   "subagents": { "disableBuiltins": true }
 }
