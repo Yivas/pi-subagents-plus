@@ -102,7 +102,7 @@ export function qualifyModelWithProvider(
 	return `${provider}/${model}`;
 }
 
-export function findModelInfo(model: string | undefined, availableModels: ModelInfo[] | undefined, preferredProvider?: string): ModelInfo | undefined {
+export function findModelInfo(model: string | undefined, availableModels: readonly ModelInfo[] | undefined, preferredProvider?: string): ModelInfo | undefined {
 	if (!model || !availableModels || availableModels.length === 0) return undefined;
 	const { baseModel } = splitKnownThinkingSuffix(model);
 	const exact = availableModels.find((entry) => entry.fullId === baseModel);
