@@ -20,7 +20,7 @@ Do not install it alongside `pi-subagents`: both register the same tools. Remove
 pi remove npm:pi-subagents
 ```
 
-Tool, command, event, skill, prompt, and settings names stay the same as upstream. Extensions that import `pi-subagents/<subpath>` by package name must import `pi-subagents-plus/<subpath>` instead.
+Tool, command, event, skill, prompt, and settings names stay the same as upstream. The npm executable is the exception: it is `pi-subagents-plus`, not `pi-subagents`. Extensions that import `pi-subagents/<subpath>` by package name must import `pi-subagents-plus/<subpath>` instead.
 
 MIT, with Nico Bailon's copyright kept. See [LICENSE](LICENSE).
 
@@ -32,7 +32,7 @@ MIT, with Nico Bailon's copyright kept. See [LICENSE](LICENSE).
 pi install git:github.com/Yivas/pi-subagents-plus@main
 ```
 
-`@main` is the development branch, so an install from it picks up work as it merges. Release tags follow the `-plus.<n>` scheme described above and pin a fixed version; none exist yet.
+`@main` is the development branch, not a reproducible install: an install from it picks up work as it merges. Pinning a version needs a `-plus.<n>` tag or the exact npm version, and neither exists yet.
 
 That is the only required step. pi-subagents-plus needs Pi 1.2.0 or newer. Background children use the host's SDK: npm Pi keeps its detached Node runner; the official Pi 1.2.0 Linux x64 standalone release loads the same runner through Pi's embedded SDK, without a separate SDK install. See [Standalone background execution](docs/standalone-background.md) for the supported boundary and validation gate.
 
