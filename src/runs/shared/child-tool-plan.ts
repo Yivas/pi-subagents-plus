@@ -26,6 +26,11 @@ import { resolveRuntimeModulePath, RUNTIME_MODULE_EXTENSIONS } from "../../share
 import type { PermissionRules } from "./permissions.ts";
 import { snapshotRequiredChildExtensions, type RequiredChildExtensionSnapshot } from "../../shared/required-child-extensions.ts";
 import {
+	extensionPathKey,
+	snapshotProviderChildExtensionReference,
+	type ProviderChildExtensionReference,
+} from "../../shared/provider-child-extensions.ts";
+import {
 	capabilityCeilingAgentRestrictionSources,
 	intersectSubagentCapabilityCeilings,
 	isAgentAllowedByCapabilityCeiling,
@@ -123,6 +128,12 @@ export interface ResolvePiLaunchToolPlanInput {
 	extensions?: string[];
 	subagentOnlyExtensions?: string[];
 	requiredExtensions?: RequiredChildExtensionSnapshot;
+	/**
+	 * The extension the model's provider registered for children. The plan
+	 * attaches it only when the child starts without ambient extensions; the
+	 * launching session resolves it once, so preflight and execution agree.
+	 */
+	providerChildExtension?: ProviderChildExtensionReference;
 	mcpDirectTools?: string[];
 	cwd?: string;
 	requireReadTool?: boolean;
@@ -425,6 +436,20 @@ export function resolvePiLaunchToolPlan(
 	const disableAmbientExtensions =
 		capabilityCeiling?.denyExtensions === true ||
 		input.extensions !== undefined;
+	// A child that loads no ambient extension keeps only what its provider's
+	// extension declared; an agent that already lists that file keeps its own
+	// entry instead of gaining a duplicate.
+	const declaredProviderChildExtension = snapshotProviderChildExtensionReference(input.providerChildExtension);
+	const providerChildExtension = declaredProviderChildExtension && disableAmbientExtensions ? declaredProviderChildExtension : undefined;
+	if (providerChildExtension && capabilityCeiling?.denyExtensions) {
+		throw new Error(`Capability ceiling from ${capabilityCeiling.sources.join(", ") || "unknown source"} denies extensions, but provider '${providerChildExtension.provider}' registered child extension '${providerChildExtension.path}'. Relax the ceiling or use a model whose provider needs no extension in the child.`);
+	}
+	const listedExtensionKeys = new Set(
+		[...toolExtensionPaths, ...(input.extensions ?? []), ...(input.subagentOnlyExtensions ?? [])].map(extensionPathKey),
+	);
+	const providerChildExtensionPaths = providerChildExtension && !listedExtensionKeys.has(extensionPathKey(providerChildExtension.path))
+		? [providerChildExtension.path]
+		: [];
 	const warnings: string[] = [];
 	// An explicit empty list disables ambient extensions, including model providers.
 	if (capabilityCeiling?.denyExtensions !== true && Array.isArray(input.extensions) && input.extensions.length === 0) {
@@ -441,6 +466,7 @@ export function resolvePiLaunchToolPlan(
 				...toolExtensionPaths,
 				...(input.extensions ?? []),
 				...(input.subagentOnlyExtensions ?? []),
+				...providerChildExtensionPaths,
 			];
 	const ordinaryExtensionArgs = disableAmbientExtensions
 		? [...new Set([...runtimeExtensions, ...configuredExtensions])]

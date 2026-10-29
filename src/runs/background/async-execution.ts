@@ -96,6 +96,7 @@ import { normalizeExtensionBindings, omitExtensionBindingsEnv, type ExtensionBin
 import { omitGitRoutingEnv } from "../shared/git-environment.ts";
 import { assertWorkflowLaneKey, normalizeWorkflowLaneMetadata } from "../shared/lane-metadata.ts";
 import { assertRequiredChildExtensionsAdmitted, resolveRequiredChildExtensions, writeRetainedRequiredChildExtensions, type RequiredChildExtensionSnapshot } from "../../shared/required-child-extensions.ts";
+import { resolveLaunchProviderChildExtension } from "../../shared/provider-child-extensions.ts";
 
 const require = nodeModule.createRequire(import.meta.url);
 // Cache failures as well as roots: management must remain loadable, and launches must not retry another SDK.
@@ -1241,6 +1242,13 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 		if (launchRuleError) throw new AsyncStartValidationError(launchRuleError);
 		const fast = s.fast ?? params.fast ?? a.fast;
 		const requiredExtensions = externalRunner ? [] : params.requiredExtensions ?? ctx.childRuntime?.requiredExtensions ?? registeredExtensions;
+		// A saved machine is another host: its child cannot load a file from this filesystem.
+		const providerChildExtension = externalRunner || machine ? undefined : resolveLaunchProviderChildExtension({
+			enabled: a.providerChildExtensions === true,
+			model: selectedModel,
+			availableModels,
+			preferredProvider: a.modelProvider ?? ctx.currentModelProvider,
+		});
 		const toolPlan = resolvePiLaunchToolPlan({
 			tools: a.tools,
 			excludeTools: a.excludeTools,
@@ -1248,6 +1256,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 			extensions: a.extensions,
 			subagentOnlyExtensions: a.subagentOnlyExtensions,
 			requiredExtensions,
+			providerChildExtension,
 			mcpDirectTools: a.mcpDirectTools,
 			cwd: stepCwd,
 			requireReadTool: Boolean(resolvedSkills.length),
@@ -1292,6 +1301,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 			...(thinkingCeiling ? { thinkingCeiling } : {}),
 			launchResolvedExtensions,
 			...(parentExtensionProvider ? { parentExtensionProvider } : {}),
+			...(providerChildExtension ? { providerChildExtension } : {}),
 			...(requestedModel ? { requestedModel } : {}),
 			...(primaryModelFromParent ? { skipPrimaryModelVerification: true } : {}),
 			...(availableModels && availableModels.length > 0 ? { modelVerificationRegistry: availableModels } : {}),
@@ -2097,6 +2107,13 @@ export function executeAsyncSingle(
 		}
 	}
 	const requiredExtensions = externalRunner ? [] : params.requiredExtensions ?? ctx.childRuntime?.requiredExtensions ?? registeredExtensions;
+	// A saved machine is another host: its child cannot load a file from this filesystem.
+	const providerChildExtension = externalRunner || machine ? undefined : resolveLaunchProviderChildExtension({
+		enabled: agentConfig.providerChildExtensions === true,
+		model: selectedModel,
+		availableModels,
+		preferredProvider: agentConfig.modelProvider ?? ctx.currentModelProvider,
+	});
 	const toolPlan = resolvePiLaunchToolPlan({
 		tools: agentConfig.tools,
 		excludeTools: agentConfig.excludeTools,
@@ -2104,6 +2121,7 @@ export function executeAsyncSingle(
 		extensions: agentConfig.extensions,
 		subagentOnlyExtensions: agentConfig.subagentOnlyExtensions,
 		requiredExtensions,
+		providerChildExtension,
 		mcpDirectTools: agentConfig.mcpDirectTools,
 		cwd: runnerCwd,
 		requireReadTool: Boolean(resolvedSkills.length),
@@ -2241,6 +2259,7 @@ export function executeAsyncSingle(
 						thinking: resolveEffectiveThinking(selectedModel, effectiveThinking),
 						...(thinkingCeiling ? { thinkingCeiling } : {}),
 						...(parentExtensionProvider ? { parentExtensionProvider } : {}),
+						...(providerChildExtension ? { providerChildExtension } : {}),
 						...(requestedModel ? { requestedModel } : {}),
 						...(modelOrigin === "inherited" ? { skipPrimaryModelVerification: true } : {}),
 						...(availableModels && availableModels.length > 0 ? { modelVerificationRegistry: availableModels } : {}),

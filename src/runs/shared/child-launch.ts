@@ -36,6 +36,7 @@ import { createCapturedChildHooks, withChildSessionErrorReporting } from "./chil
 import type { ChildTranscriptWriter } from "../../shared/child-transcript.ts";
 import type { ChildSessionLaunch, ChildSessionStorage } from "./child-session.ts";
 import { resolveRequiredChildExtensions, type RequiredChildExtensionSnapshot } from "../../shared/required-child-extensions.ts";
+import type { ProviderChildExtensionReference } from "../../shared/provider-child-extensions.ts";
 
 /** Environment variable pi-mcp-adapter reads for the tools a child may expose. */
 export const MCP_DIRECT_TOOLS_ENV = "MCP_DIRECT_TOOLS";
@@ -85,6 +86,8 @@ export interface BuildInProcessChildLaunchInput {
 	subagentOnlyExtensions?: string[];
 	/** Serialized launch snapshot; omitted only for a top-level parent-process lookup. */
 	requiredExtensions?: RequiredChildExtensionSnapshot;
+	/** Resolved by the launching session: the runner process cannot read the parent's provider registrations. */
+	providerChildExtension?: ProviderChildExtensionReference;
 	systemPrompt?: string | null;
 	mcpDirectTools?: string[];
 	/** Selections the parent resolved against Pi's built-in MCP, carried to the runner. */
@@ -204,6 +207,7 @@ export function buildInProcessChildLaunch(input: BuildInProcessChildLaunchInput)
 		extensions: input.extensions,
 		subagentOnlyExtensions: input.subagentOnlyExtensions,
 		requiredExtensions,
+		providerChildExtension: input.providerChildExtension,
 		mcpDirectTools: input.mcpDirectTools,
 		builtinMcpTools: input.builtinMcpTools,
 		cwd: input.cwd,

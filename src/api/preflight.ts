@@ -28,6 +28,7 @@ import { resultFilePath } from "../runs/background/result-files.ts";
 import { nestedResultsPath } from "../runs/shared/nested-events.ts";
 import { normalizeExtensionBindings, type ExtensionBindings } from "../runs/shared/extension-bindings.ts";
 import { assertRequiredChildExtensionsAdmitted, resolveRequiredChildExtensions } from "../shared/required-child-extensions.ts";
+import { resolveLaunchProviderChildExtension } from "../shared/provider-child-extensions.ts";
 
 // v3: the contract reports the resolved Intercom bridge state and binds its
 // prompt and tools into launchContractDigest, matching execution (#2127).
@@ -450,6 +451,12 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 	const permissionRules = resolvePermissionRules(loadConfig().permissions, agent.permissions);
 	const fast = input.fast ?? agent.fast;
 	const requiredExtensions = externalRunner ? [] : resolveRequiredChildExtensions(input.parentSessionId);
+	const providerChildExtension = resolveLaunchProviderChildExtension({
+		enabled: agent.providerChildExtensions === true,
+		model,
+		availableModels,
+		preferredProvider,
+	});
 	try {
 		toolPlan = resolvePiLaunchToolPlan({
 			tools: agent.tools,
@@ -458,6 +465,7 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 			extensions: agent.extensions,
 			subagentOnlyExtensions: agent.subagentOnlyExtensions,
 			requiredExtensions,
+			providerChildExtension,
 			mcpDirectTools: agent.mcpDirectTools,
 			cwd: effectiveCwd,
 			requireReadTool: resolvedSkills.resolved.length > 0,
