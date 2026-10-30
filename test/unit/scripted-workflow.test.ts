@@ -1772,6 +1772,11 @@ describe("scripted workflow runtime", () => {
 			["reviewer", "Read-only review. Do not edit files. /usr/local/bin/rm -rf ."],
 			["reviewer", "Read-only review. Do not edit files. Validation after fix: git -C . reset --hard."],
 			["reviewer", "Read-only review. Do not edit files. git -C -1 reset --hard"],
+			["reviewer", "Read-only review. Do not edit files. git --work-tree='dir with spaces' reset --hard"],
+			["reviewer", 'Read-only review. Do not edit files. git --work-tree="dir with spaces" reset --hard'],
+			["reviewer", 'Read-only review. Do not edit files. git -C "x -a reset"'],
+			["reviewer", "Read-only review. Do not edit files. git -C 'git reset' status"],
+			["reviewer", 'Read-only review. Do not edit files. git -c "x reset"'],
 			["reviewer", "Read-only review. Do not edit files. git -C --hard reset"],
 			["reviewer", "Read-only review. Do not edit files. git --work-tree . reset --hard."],
 			["reviewer", "Read-only review. Do not edit files. git --work-tree \"/tmp/my repo\" reset --hard."],
@@ -1820,18 +1825,17 @@ describe("scripted workflow runtime", () => {
 		}
 	});
 
-	it("scans an adversarial git option stream in bounded time", async () => {
+	it("keeps non-matching git syntax allowed and scans adversarial option streams in bounded time", async () => {
 		const recovery = {
 			status: "available-for-review" as const,
 			reason: "acceptance-metadata-rejected" as const,
 			reportPath: "/tmp/writer-report.md",
 			reportHash: "a".repeat(64),
 		};
-		// Two shapes the earlier patterns could not finish, both around 200k characters. The bare
-		// option run backtracked exponentially once the pattern overlapped (123 characters already
-		// took seconds), and repeated "git -a" words stayed quadratic even after that fix, because
-		// every git word could also be read as the value of the option before it. Both stay linear.
-		for (const optionStream of [`git${" -a".repeat(66_000)}`, "git -a ".repeat(25_000)]) {
+		// The upstream pattern does not match -C=x: short options only take separated values.
+		// The long streams are 198,003 and 175,000 characters: exponential and repeated-start
+		// regressions respectively. The elapsed-time assertion includes the workflow process.
+		for (const optionStream of ["git -C=x reset", `git${" -a".repeat(66_000)}`, "git -a ".repeat(25_000)]) {
 			const launches: string[] = [];
 			const startedAt = performance.now();
 			const result = await runWorkflowScript({
