@@ -1,0 +1,44 @@
+name: Upstream identity
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  identity:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      - name: Compare upstream and plus in separate native Pi processes
+        env:
+          TMPDIR: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
+          TEMP: ${{ runner.temp }}
+        run: node --experimental-strip-types --test test/smoke/upstream-identity.test.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: upstream-identity-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/pi-upstream-identity-*/baseline/*
+            ${{ runner.temp }}/pi-upstream-identity-*/candidate/*
+          if-no-files-found: ignore
+          retention-days: 7
