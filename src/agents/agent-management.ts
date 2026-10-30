@@ -262,6 +262,10 @@ export function editableAgentConfig(agent: AgentConfig): AgentConfig {
 		const next = { ...config };
 		if (!hasDeclaredField("model")) delete next.model;
 		if (!hasDeclaredField("thinking")) delete next.thinking;
+		if (agent.providerChildExtensionsFromDefault) {
+			delete next.providerChildExtensions;
+			delete next.providerChildExtensionsFromDefault;
+		}
 		return next;
 	};
 	const {
@@ -272,6 +276,7 @@ export function editableAgentConfig(agent: AgentConfig): AgentConfig {
 		defaultReads: _defaultReads,
 		model: _model,
 		fast: _fast,
+		providerChildExtensions: _providerChildExtensions,
 		thinking: _thinking,
 		systemPromptMode: _systemPromptMode,
 		inheritProjectContext: _inheritProjectContext,
@@ -308,6 +313,7 @@ export function editableAgentConfig(agent: AgentConfig): AgentConfig {
 		...(base.defaultReads !== undefined ? { defaultReads: [...base.defaultReads] } : {}),
 		...(base.model !== undefined && hasDeclaredField("model") ? { model: base.model } : {}),
 		...(base.fast !== undefined ? { fast: base.fast } : {}),
+		...(base.providerChildExtensions !== undefined ? { providerChildExtensions: base.providerChildExtensions } : {}),
 		...(base.thinking !== undefined && hasDeclaredField("thinking") ? { thinking: base.thinking } : {}),
 		systemPromptMode: base.systemPromptMode,
 		inheritProjectContext: base.inheritProjectContext,

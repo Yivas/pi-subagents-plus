@@ -26,6 +26,13 @@ import { resolveRuntimeModulePath, RUNTIME_MODULE_EXTENSIONS } from "../../share
 import type { PermissionRules } from "./permissions.ts";
 import { snapshotRequiredChildExtensions, type RequiredChildExtensionSnapshot } from "../../shared/required-child-extensions.ts";
 import {
+	assertProviderChildExtensionNotDenied,
+	childDisablesAmbientExtensions,
+	unlistedProviderChildExtensionPaths,
+	snapshotProviderChildExtensionReference,
+	type ProviderChildExtensionReference,
+} from "../../shared/provider-child-extensions.ts";
+import {
 	capabilityCeilingAgentRestrictionSources,
 	intersectSubagentCapabilityCeilings,
 	isAgentAllowedByCapabilityCeiling,
@@ -123,6 +130,12 @@ export interface ResolvePiLaunchToolPlanInput {
 	extensions?: string[];
 	subagentOnlyExtensions?: string[];
 	requiredExtensions?: RequiredChildExtensionSnapshot;
+	/**
+	 * The extension the model's provider registered for children. The plan
+	 * attaches it only when the child starts without ambient extensions; the
+	 * launching session resolves it once, so preflight and execution agree.
+	 */
+	providerChildExtension?: ProviderChildExtensionReference;
 	mcpDirectTools?: string[];
 	cwd?: string;
 	requireReadTool?: boolean;
@@ -422,9 +435,14 @@ export function resolvePiLaunchToolPlan(
 		...(fanoutAuthorized ? [resolveRuntimeModulePath(FANOUT_CHILD_EXTENSION_DIR, "fanout-child")] : []),
 		...(permSystemExt ? [permSystemExt] : []),
 	];
-	const disableAmbientExtensions =
-		capabilityCeiling?.denyExtensions === true ||
-		input.extensions !== undefined;
+	const disableAmbientExtensions = childDisablesAmbientExtensions(input);
+	// The launching session already decided that this child needs its provider's
+	// file; the plan only forwards it and refuses to drop it under a ceiling.
+	const providerChildExtension = snapshotProviderChildExtensionReference(input.providerChildExtension);
+	if (providerChildExtension) assertProviderChildExtensionNotDenied(providerChildExtension, capabilityCeiling);
+	const providerChildExtensionPaths = unlistedProviderChildExtensionPaths(
+		providerChildExtension, [...toolExtensionPaths, ...(input.extensions ?? []), ...(input.subagentOnlyExtensions ?? [])],
+	);
 	const warnings: string[] = [];
 	// An explicit empty list disables ambient extensions, including model providers.
 	if (capabilityCeiling?.denyExtensions !== true && Array.isArray(input.extensions) && input.extensions.length === 0) {
@@ -441,6 +459,7 @@ export function resolvePiLaunchToolPlan(
 				...toolExtensionPaths,
 				...(input.extensions ?? []),
 				...(input.subagentOnlyExtensions ?? []),
+				...providerChildExtensionPaths,
 			];
 	const ordinaryExtensionArgs = disableAmbientExtensions
 		? [...new Set([...runtimeExtensions, ...configuredExtensions])]

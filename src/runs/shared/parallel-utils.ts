@@ -53,6 +53,8 @@ export interface RunnerSubagentStep {
 	tools?: string[];
 	/** Provider of `model` that a parent extension registers; set only when this child loads no ambient extensions. */
 	parentExtensionProvider?: string;
+	/** The extension that provider registered for children; resolved in the parent, since a runner has no provider registry. */
+	providerChildExtension?: import("../../shared/provider-child-extensions.ts").ProviderChildExtensionReference;
 	excludeTools?: string[];
 	allowNestedSubagents?: boolean;
 	/** Resolved selected-agent policy for launches made by this child. */

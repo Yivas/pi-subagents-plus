@@ -15,6 +15,7 @@ export const KNOWN_FIELDS = new Set([
 	"allowedAgents",
 	"model",
 	"fast",
+	"providerChildExtensions",
 	"thinking",
 	"systemPromptMode",
 	"inheritProjectContext",
@@ -91,6 +92,9 @@ export function serializeAgent(config: AgentConfig, options: SerializeAgentOptio
 
 	if (config.model || preserve("model")) lines.push(`model: ${config.model ?? ""}`);
 	if (config.fast === true || preserve("fast")) lines.push(`fast: ${config.fast === undefined ? "" : config.fast ? "true" : "false"}`);
+	if (config.providerChildExtensions !== undefined || preserve("providerChildExtensions")) {
+		lines.push(`providerChildExtensions: ${config.providerChildExtensions === undefined ? "" : config.providerChildExtensions ? "true" : "false"}`);
+	}
 	if (config.thinking || preserve("thinking")) lines.push(`thinking: ${config.thinking ?? ""}`);
 	if (!preservingExistingFrontmatter || preserve("systemPromptMode")) lines.push(`systemPromptMode: ${config.systemPromptMode}`);
 	if (!preservingExistingFrontmatter || preserve("inheritProjectContext")) lines.push(`inheritProjectContext: ${config.inheritProjectContext ? "true" : "false"}`);

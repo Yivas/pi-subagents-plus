@@ -549,6 +549,14 @@ When `storeRoot` is omitted, schedules remain at `<cwd>/.pi/subagents/schedules`
 
 `maxTasks` defaults to `8`; `concurrency` defaults to `4`. Per-call `concurrency` takes precedence.
 
+## `subagents.providerChildExtensions`
+
+```json
+{ "subagents": { "providerChildExtensions": true } }
+```
+
+Default for the per-agent `providerChildExtensions` switch, which is off unless this or the agent sets it. When it is on and a launch keeps a child away from ambient extensions, the child loads the file the model's provider registered with `registerProviderChildExtension`; a child that keeps the ambient extensions loads that extension anyway. The agent, its built-in override or `agentOverrides` entry, and its frontmatter win over this default. The setting does not change the agent definition digest. See [Provider child extensions](agents.md#provider-child-extensions).
+
 ## `defaultSessionDir`
 
 ```json

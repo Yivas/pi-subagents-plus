@@ -51,6 +51,9 @@ export function projectAgentDefinition(agent: AgentConfig): Record<string, unkno
 		model: agent.model,
 		modelProvider: agent.modelProvider,
 		fast: agent.fast,
+		// Only an agent's explicit opt-in changes its definition. Off must retain
+		// the upstream digest; a settings default is not the author's definition.
+		...(agent.providerChildExtensions === true && !agent.providerChildExtensionsFromDefault ? { providerChildExtensions: true } : {}),
 		thinking: agent.thinking,
 		tools: agent.tools,
 		excludeTools: agent.excludeTools,

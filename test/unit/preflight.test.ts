@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { registerSubagentCapabilityCeiling, resolveSubagentCapabilityCeiling } from "../../src/api/capability-ceiling.ts";
 import { registerRequiredChildExtensions } from "../../src/api/required-child-extensions.ts";
+import { registerProviderChildExtension } from "../../src/shared/provider-child-extensions.ts";
 import { resolveSubagentLaunchContract, SUBAGENT_LAUNCH_CONTRACT_VERSION } from "../../src/api/preflight.ts";
 import { clearSkillCache } from "../../src/agents/skills.ts";
 import { computeMcpServerHash } from "../../src/runs/shared/mcp-direct-tool-allowlist.ts";
@@ -71,6 +72,23 @@ describe("public launch contract preflight", () => {
 		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
 		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
 		fs.rmSync(tempDir, { recursive: true, force: true });
+	});
+
+	it("does not publish a local provider extension for an agent pinned to a machine", async () => {
+		const cwd = path.join(tempDir, "repo");
+		writeAgent(path.join(cwd, ".pi", "agents", "remote-provider.md"), "---\nname: remote-provider\ndescription: Remote provider fixture\nmachine: remote-box\nmodel: preflight-provider/echo\nproviderChildExtensions: true\nextensions: []\n---\nFixture.\n");
+		const extensionPath = path.join(tempDir, "provider.mjs");
+		fs.writeFileSync(extensionPath, "export default () => {};\n");
+		const registration = registerProviderChildExtension({ provider: "preflight-provider", path: extensionPath, owner: "preflight-fixture" });
+		try {
+			const result = await resolveSubagentLaunchContract({ agent: "remote-provider", cwd, availableModels: [{ provider: "preflight-provider", id: "echo" }] });
+			assert.ok(result.ok);
+			assert.equal("providerDerivedExtensions" in result.contract.tools, false);
+			assert.equal(result.contract.tools.configuredExtensions.includes(fs.realpathSync(extensionPath)), false);
+			assert.equal(result.contract.tools.extensionArgs.includes(fs.realpathSync(extensionPath)), false);
+		} finally {
+			registration.dispose();
+		}
 	});
 
 	it("exposes required host IDs without exposing their private paths", async () => {

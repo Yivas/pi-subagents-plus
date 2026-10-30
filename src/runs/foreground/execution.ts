@@ -64,6 +64,7 @@ import { retainsChildCommand } from "../shared/child-commands.ts";
 import { deriveChildSessionName } from "../../shared/child-session-name.ts";
 import { assertAgentAllowedByCapabilityCeiling, intersectSubagentCapabilityCeilings, resolveCurrentSubagentCapabilityCeiling } from "../shared/capability-ceiling.ts";
 import { qualifyModelWithProvider, resolveEffectiveThinking } from "../../shared/model-info.ts";
+import { resolveProviderChildExtensionLaunch } from "../../shared/provider-child-extensions.ts";
 import { assertThinkingWithinCeiling, intersectThinkingCeilings } from "../../shared/thinking-ceiling.ts";
 import { formatStructuredOutputRejectionError, MISSING_STRUCTURED_ACCEPTANCE_REPORT_ERROR, MISSING_STRUCTURED_OUTPUT_CALL_ERROR, STRUCTURED_OUTPUT_FOLLOW_UP } from "../shared/structured-output.ts";
 import { formatMidToolExitError, isOrdinaryToolForMidToolExit } from "../shared/process-signal.ts";
@@ -391,6 +392,17 @@ async function runSingleAttempt(
 		? path.join(options.artifactsDir, "permission-audit", `${options.runId}-${options.index ?? 0}.jsonl`)
 		: undefined;
 	let onWatchdogStatus: ((event: ChildWatchdogStatusEvent) => void) | undefined;
+	// Preflight resolves the same reference, so the published contract and this launch agree.
+	const providerChildExtension = resolveProviderChildExtensionLaunch({
+		agent,
+		model: modelArg,
+		availableModels: options.availableModels,
+		preferredProvider: agent.modelProvider ?? options.preferredModelProvider,
+		capabilityCeiling: options.capabilityCeiling,
+		// An in-process child loads extensions from this host, whatever the agent's runner is elsewhere.
+		externalRunner: false,
+		remoteMachine: Boolean(options.machine),
+	});
 	const launch = buildInProcessChildLaunch({
 		machine: options.machine,
 		remoteSkillNames: options.skills ?? agent.skills,
@@ -412,6 +424,7 @@ async function runSingleAttempt(
 		descendantAllowedAgents: agent.allowedAgents,
 		extensions: agent.extensions,
 		subagentOnlyExtensions: agent.subagentOnlyExtensions,
+		providerChildExtension: providerChildExtension?.reference,
 		// Exact terminal protocol belongs to session resources, not compactable history.
 		systemPrompt: shared.acceptancePrompt ? `${shared.systemPrompt}\n${shared.acceptancePrompt}` : shared.systemPrompt,
 		mcpDirectTools: agent.mcpDirectTools,

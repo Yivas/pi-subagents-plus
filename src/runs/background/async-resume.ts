@@ -4,6 +4,7 @@ import { DIRS, RUNNER_LAUNCHER_NAME_PATTERN, type AcceptanceInput, type AsyncSta
 import type { AgentConfig } from "../../agents/agents.ts";
 import { normalizeExtensionBindings } from "../shared/extension-bindings.ts";
 import { snapshotRequiredChildExtensions } from "../../shared/required-child-extensions.ts";
+import { snapshotProviderChildExtensionResumeSnapshot } from "../../shared/provider-child-extensions.ts";
 import { normalizeWorkflowLaneMetadata } from "../shared/lane-metadata.ts";
 import { validateAcceptanceInput } from "../shared/acceptance.ts";
 import { validateToolBudgetConfig } from "../shared/tool-budget.ts";
@@ -332,6 +333,7 @@ export function readAsyncRecoveryDescriptor(asyncDir: string | undefined): Steer
 		"launchResolvedExtensions", "runFanoutBudget", "lane", "baseRef", "launcher",
 		"extensionBindings",
 		"requiredExtensions",
+		"providerChildExtension",
 	]);
 	for (const field of Object.keys(parsed)) {
 		if (!allowedFields.has(field)) throw new Error(`Invalid async recovery descriptor '${descriptorPath}': unknown field '${field}'.`);
@@ -353,6 +355,10 @@ export function readAsyncRecoveryDescriptor(asyncDir: string | undefined): Steer
 	if (parsed.extensionBindings !== undefined) parsed.extensionBindings = normalizeExtensionBindings(parsed.extensionBindings)!.value;
 	if (parsed.requiredExtensions !== undefined) {
 		try { parsed.requiredExtensions = snapshotRequiredChildExtensions(parsed.requiredExtensions, "requiredExtensions"); }
+		catch (error) { throw new Error(`Invalid async recovery descriptor '${descriptorPath}': ${error instanceof Error ? error.message : String(error)}`); }
+	}
+	if (parsed.providerChildExtension !== undefined) {
+		try { parsed.providerChildExtension = snapshotProviderChildExtensionResumeSnapshot(parsed.providerChildExtension, "providerChildExtension"); }
 		catch (error) { throw new Error(`Invalid async recovery descriptor '${descriptorPath}': ${error instanceof Error ? error.message : String(error)}`); }
 	}
 	if (parsed.lane !== undefined) parsed.lane = normalizeWorkflowLaneMetadata(parsed.lane, `Invalid async recovery descriptor '${descriptorPath}': lane`);
@@ -642,6 +648,8 @@ export function applySteeringRecoveryAgentConfig(agentConfig: AgentConfig, descr
 		maxSubagentDepth: descriptor.maxSubagentDepth,
 		// The recorded launcher wins over the current agent file, including recorded absence.
 		launcher: descriptor.launcher,
+		// A resumed launch replays the recorded switch, so current settings cannot change its identity.
+		providerChildExtensions: descriptor.providerChildExtension?.enabled,
 	};
 }
 

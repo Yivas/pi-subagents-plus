@@ -28,9 +28,17 @@ import { resultFilePath } from "../runs/background/result-files.ts";
 import { nestedResultsPath } from "../runs/shared/nested-events.ts";
 import { normalizeExtensionBindings, type ExtensionBindings } from "../runs/shared/extension-bindings.ts";
 import { assertRequiredChildExtensionsAdmitted, resolveRequiredChildExtensions } from "../shared/required-child-extensions.ts";
+import {
+	resolveProviderChildExtensionLaunch,
+	type ProviderChildExtensionLaunch,
+	type ProviderChildExtensionProvenance,
+} from "../shared/provider-child-extensions.ts";
 
 // v3: the contract reports the resolved Intercom bridge state and binds its
 // prompt and tools into launchContractDigest, matching execution (#2127).
+// `tools.providerDerivedExtensions` was added additively: it is absent unless a
+// provider's extension was derived for this launch, so v3 consumers that ignore
+// unknown fields need no new version.
 export const SUBAGENT_LAUNCH_CONTRACT_VERSION = 3 as const;
 
 /** Stands in for the parent session target when the host does not supply one; only custom templates that name the session read it. */
@@ -155,6 +163,12 @@ export interface SubagentLaunchContractTools {
 	configuredExtensions: string[];
 	requiredExtensionIds: string[];
 	extensionArgs: string[];
+	/**
+	 * Files this launch derived from a provider's registration, so a policy can
+	 * authorize them without trusting a path the agent declared itself. Absent
+	 * when nothing applied, which is every launch upstream performs.
+	 */
+	providerDerivedExtensions?: ProviderChildExtensionProvenance[];
 	disableAmbientExtensions: boolean;
 	fanoutAuthorized: boolean;
 	capabilityCeiling?: ResolvedSubagentCapabilityCeiling;
@@ -450,7 +464,18 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 	const permissionRules = resolvePermissionRules(loadConfig().permissions, agent.permissions);
 	const fast = input.fast ?? agent.fast;
 	const requiredExtensions = externalRunner ? [] : resolveRequiredChildExtensions(input.parentSessionId);
+	let providerChildExtension: ProviderChildExtensionLaunch | undefined;
 	try {
+		providerChildExtension = resolveProviderChildExtensionLaunch({
+			agent,
+			model,
+			availableModels,
+			preferredProvider,
+			capabilityCeiling: effectiveCapabilityCeiling,
+			externalRunner,
+			// Saved placement is already known even though preflight has no per-call machine input.
+			remoteMachine: Boolean(agent.machine),
+		});
 		toolPlan = resolvePiLaunchToolPlan({
 			tools: agent.tools,
 			excludeTools: agent.excludeTools,
@@ -458,6 +483,7 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 			extensions: agent.extensions,
 			subagentOnlyExtensions: agent.subagentOnlyExtensions,
 			requiredExtensions,
+			providerChildExtension: providerChildExtension?.reference,
 			mcpDirectTools: agent.mcpDirectTools,
 			cwd: effectiveCwd,
 			requireReadTool: resolvedSkills.resolved.length > 0,
@@ -553,6 +579,7 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 			runtimeExtensions: toolPlan.runtimeExtensions,
 			configuredExtensions: toolPlan.configuredExtensions,
 			requiredExtensionIds: toolPlan.requiredExtensions.map(({ id }) => id),
+			...(providerChildExtension ? { providerDerivedExtensions: [providerChildExtension.provenance] } : {}),
 			// Required paths are private launch authority; preflight exposes their safe IDs above.
 			extensionArgs: toolPlan.extensionArgs.filter((extensionPath) => !requiredExtensions.some(({ path }) => path === extensionPath)),
 			disableAmbientExtensions: toolPlan.disableAmbientExtensions,

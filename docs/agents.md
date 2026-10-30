@@ -486,6 +486,30 @@ With `requireForAllRunners: true`, a launch that resolves to an external CLI run
 
 Successful completion is determined by observable gates such as process outcome, required outputs, explicit acceptance, verification commands, independent review, and staged-index integrity. Best-effort mutation observations remain diagnostic: unchanged or unknown evidence does not fail a run, and observed changes do not prove correctness.
 
+## Provider child extensions
+
+A child that starts without ambient extensions keeps only the files its launch names, so a model served by one of your extensions fails unless the child loads that extension too. Pi has no public way to ask which extension registered a provider, and loading an extension runs all of it, so the extension that serves the provider declares the file in the parent:
+
+```ts
+import { registerProviderChildExtension } from "pi-subagents-plus/provider-child-extensions";
+
+const registration = registerProviderChildExtension({ provider: "my-provider", path: import.meta.filename, owner: "my-provider-extension" });
+// later, usually on session_shutdown
+registration.dispose();
+```
+
+`path` must be an importable file; it is canonicalized once, so every later comparison and every launch sees the same file identity. One path per provider: a second registration for the same provider with a different path fails and names both paths and owners, in either order. Registering the same path again is idempotent.
+
+The declaration only takes effect when the launch also does. `subagents.providerChildExtensions`, the agent's `providerChildExtensions`, its built-in override or `agentOverrides` entry, or its frontmatter sets the switch; the agent's own value wins and the setting only fills gaps. With the switch on, a launch attaches the registered file when the child starts without ambient extensions, which is what `extensions: []`, an explicit `extensions` list, or a `denyExtensions` ceiling select. Children that keep the ambient extensions already load that extension, so nothing is added.
+
+This is not a sandbox. The child loads the file as an ordinary extension: its hooks, commands, tools, credentials, prompts, and responses all run. Start by registering the whole extension file, which is faithful to what the parent runs, and move to a dedicated entry with only the provider registration when the child receives more than it needs. A `capabilityCeiling.denyExtensions` ceiling fails the launch instead of dropping the file, because the child would then start without the provider its model needs.
+
+Limits: an external CLI or external-job runner, or a machine placement, runs the child on another host and cannot load a file from this filesystem, so those launches attach nothing. Launch order does not matter, but a provider registered after the child starts is still unknown to it.
+
+The launch contract reports what it derived: `contract.tools.configuredExtensions` and `extensionArgs` carry the path it loads, and `tools.providerDerivedExtensions` lists `{ path, provider, model }` only when one applies, so a policy can authorize a derived file without trusting a path an agent declared itself. This field is additive and absent when nothing applies, so the contract version does not change. A background run records what it launched with in its recovery descriptor, and a resume replays that record instead of reading current settings or a registry this process may not share; a file that has since disappeared fails the resume by name.
+
+An agent registered through the runtime agent registry cannot set the switch: that definition list does not transport `providerChildExtensions`, the same as `fast`, so those agents follow `subagents.providerChildExtensions`. The definition digest ignores the global setting and includes only an agent's explicit `true`; absent or `false` keeps upstream identity. Enabling the setting globally does not change agent identity.
+
 ## Per-agent persistent memory
 
 A recurring custom agent can opt into a durable, role-specific memory scope with the `memory` frontmatter field:

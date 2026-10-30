@@ -96,6 +96,7 @@ import { normalizeExtensionBindings, omitExtensionBindingsEnv, type ExtensionBin
 import { omitGitRoutingEnv } from "../shared/git-environment.ts";
 import { assertWorkflowLaneKey, normalizeWorkflowLaneMetadata } from "../shared/lane-metadata.ts";
 import { assertRequiredChildExtensionsAdmitted, resolveRequiredChildExtensions, writeRetainedRequiredChildExtensions, type RequiredChildExtensionSnapshot } from "../../shared/required-child-extensions.ts";
+import { providerChildExtensionResumeSnapshot, resolveProviderChildExtensionLaunch, resumeProviderChildExtensionLaunch, type ProviderChildExtensionLaunch, type ProviderChildExtensionResumeSnapshot } from "../../shared/provider-child-extensions.ts";
 
 const require = nodeModule.createRequire(import.meta.url);
 // Cache failures as well as roots: management must remain loadable, and launches must not retry another SDK.
@@ -285,6 +286,8 @@ interface AsyncSingleParams {
 	/** Agent contract before per-run bridge injection, used only for recovery persistence. */
 	recoveryAgentConfig?: AgentConfig;
 	requiredExtensions?: RequiredChildExtensionSnapshot;
+	/** What a resumed run recorded for its provider's child extension; replay wins over the live registry. */
+	providerChildExtension?: ProviderChildExtensionResumeSnapshot;
 	ctx: AsyncExecutionContext;
 	cwd?: string;
 	requestedCwd?: string;
@@ -1241,6 +1244,16 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 		if (launchRuleError) throw new AsyncStartValidationError(launchRuleError);
 		const fast = s.fast ?? params.fast ?? a.fast;
 		const requiredExtensions = externalRunner ? [] : params.requiredExtensions ?? ctx.childRuntime?.requiredExtensions ?? registeredExtensions;
+		// A saved machine is another host: its child cannot load a file from this filesystem.
+		const providerChildExtension = resolveProviderChildExtensionLaunch({
+			agent: a,
+			model: selectedModel,
+			availableModels,
+			preferredProvider: a.modelProvider ?? ctx.currentModelProvider,
+			capabilityCeiling: intersectSubagentCapabilityCeilings(params.capabilityCeiling, ctx.childRuntime?.capabilityCeiling),
+			externalRunner,
+			remoteMachine: Boolean(machine),
+		});
 		const toolPlan = resolvePiLaunchToolPlan({
 			tools: a.tools,
 			excludeTools: a.excludeTools,
@@ -1248,6 +1261,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 			extensions: a.extensions,
 			subagentOnlyExtensions: a.subagentOnlyExtensions,
 			requiredExtensions,
+			providerChildExtension: providerChildExtension?.reference,
 			mcpDirectTools: a.mcpDirectTools,
 			cwd: stepCwd,
 			requireReadTool: Boolean(resolvedSkills.length),
@@ -1292,6 +1306,7 @@ export function buildAsyncRunnerSteps(id: string, params: AsyncRunnerStepBuildPa
 			...(thinkingCeiling ? { thinkingCeiling } : {}),
 			launchResolvedExtensions,
 			...(parentExtensionProvider ? { parentExtensionProvider } : {}),
+			...(providerChildExtension ? { providerChildExtension: providerChildExtension.reference } : {}),
 			...(requestedModel ? { requestedModel } : {}),
 			...(primaryModelFromParent ? { skipPrimaryModelVerification: true } : {}),
 			...(availableModels && availableModels.length > 0 ? { modelVerificationRegistry: availableModels } : {}),
@@ -2097,6 +2112,24 @@ export function executeAsyncSingle(
 		}
 	}
 	const requiredExtensions = externalRunner ? [] : params.requiredExtensions ?? ctx.childRuntime?.requiredExtensions ?? registeredExtensions;
+	let providerChildExtension: ProviderChildExtensionLaunch | undefined;
+	try {
+		providerChildExtension = params.providerChildExtension
+			// A resumed launch replays what the run recorded instead of re-reading settings, the registry, or a switch the operator may have changed since.
+			? resumeProviderChildExtensionLaunch(params.providerChildExtension)
+			: resolveProviderChildExtensionLaunch({
+				agent: agentConfig,
+				model: selectedModel,
+				availableModels,
+				preferredProvider: agentConfig.modelProvider ?? ctx.currentModelProvider,
+				capabilityCeiling,
+				// A saved machine is another host: its child cannot load a file from this filesystem.
+				externalRunner,
+				remoteMachine: Boolean(machine),
+			});
+	} catch (error) {
+		return formatAsyncStartError("single", error instanceof Error ? error.message : String(error));
+	}
 	const toolPlan = resolvePiLaunchToolPlan({
 		tools: agentConfig.tools,
 		excludeTools: agentConfig.excludeTools,
@@ -2104,6 +2137,7 @@ export function executeAsyncSingle(
 		extensions: agentConfig.extensions,
 		subagentOnlyExtensions: agentConfig.subagentOnlyExtensions,
 		requiredExtensions,
+		providerChildExtension: providerChildExtension?.reference,
 		mcpDirectTools: agentConfig.mcpDirectTools,
 		cwd: runnerCwd,
 		requireReadTool: Boolean(resolvedSkills.length),
@@ -2151,6 +2185,7 @@ export function executeAsyncSingle(
 		launchContractDigest,
 		...(extensionBindings ? { extensionBindings } : {}),
 		...(requiredExtensions.length > 0 ? { requiredExtensions } : {}),
+		...(providerChildExtension ? { providerChildExtension: providerChildExtensionResumeSnapshot(providerChildExtension) } : {}),
 		runFanoutBudget,
 		sourceRunId: id,
 		...(params.agentContract ? { agentContract: params.agentContract } : {}),
@@ -2241,6 +2276,7 @@ export function executeAsyncSingle(
 						thinking: resolveEffectiveThinking(selectedModel, effectiveThinking),
 						...(thinkingCeiling ? { thinkingCeiling } : {}),
 						...(parentExtensionProvider ? { parentExtensionProvider } : {}),
+						...(providerChildExtension ? { providerChildExtension: providerChildExtension.reference } : {}),
 						...(requestedModel ? { requestedModel } : {}),
 						...(modelOrigin === "inherited" ? { skipPrimaryModelVerification: true } : {}),
 						...(availableModels && availableModels.length > 0 ? { modelVerificationRegistry: availableModels } : {}),
