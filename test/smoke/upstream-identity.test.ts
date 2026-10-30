@@ -89,6 +89,8 @@ test("plus with fork features off is byte-identical to its upstream base in a re
 			fs.mkdirSync(installation);
 			execFileSync("tar", ["-xf", file, "-C", "installation"], { cwd: root });
 			fs.symlinkSync(fs.realpathSync(path.join(repo, "node_modules")), dependencyLink, process.platform === "win32" ? "junction" : "dir");
+			const { name, version } = JSON.parse(fs.readFileSync(path.join(installation, "package.json"), "utf8")) as { name: string; version: string };
+			return { name, version, packageRoot: installation };
 		};
 		const candidateCommit = git("rev-parse", "HEAD");
 		console.log(`upstream=${upstreamCommit}; plus=${candidateCommit}; Node=${process.version}`);
@@ -98,15 +100,15 @@ test("plus with fork features off is byte-identical to its upstream base in a re
 		const candidate = path.join(root, "candidate");
 		// A launch digest hashes absolute runtime extension paths. Control installation identity at source,
 		// rather than masking a digest that later reaches the model inside a tool result.
-		installArchive("upstream.tar");
+		const baselineIdentity = installArchive("upstream.tar");
 		runScenario(installation, workspace, baseline);
 		removeInstallation();
-		installArchive("candidate.tar");
+		const candidateIdentity = installArchive("candidate.tar");
 		runScenario(installation, workspace, candidate);
 
 		// Closed identity allowlist: only this out-of-band receipt may differ, with exact expected values.
 		// Package identity is never removed from contexts, tool names, events or session JSONL.
-		for (const [output, expected] of [[baseline, { name: "pi-subagents", version: "0.84.0", packageRoot: installation }], [candidate, { name: "pi-subagents-plus", version: "0.84.0-plus.1", packageRoot: installation }]] as const) {
+		for (const [output, expected] of [[baseline, baselineIdentity], [candidate, candidateIdentity]] as const) {
 			assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output, "identity.json"), "utf8")), expected);
 			for (const surface of ["contexts", "events", "tools"]) assert.ok(fs.statSync(path.join(output, `${surface}.jsonl`)).size > 10, `${surface} must not be empty`);
 			assert.equal(fs.statSync(path.join(output, "errors.jsonl")).size, 0);
@@ -114,7 +116,7 @@ test("plus with fork features off is byte-identical to its upstream base in a re
 			assert.match(session, /"type":"session"/);
 			assert.match(session, /IDENTITY-PARENT-DONE/);
 			const contexts = fs.readFileSync(path.join(output, "contexts.jsonl"), "utf8");
-			for (const forbidden of [repo, installation, installation.replaceAll("\\", "/"), "pi-subagents-plus", "0.84.0-plus.1"]) {
+			for (const forbidden of [repo, installation, installation.replaceAll("\\", "/"), candidateIdentity.name, candidateIdentity.version]) {
 				assert.ok(!contexts.includes(JSON.stringify(forbidden).slice(1, -1)), `package identity leaked to provider: ${forbidden}`);
 			}
 		}
