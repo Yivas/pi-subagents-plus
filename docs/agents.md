@@ -486,12 +486,12 @@ With `requireForAllRunners: true`, a launch that resolves to an external CLI run
 
 Successful completion is determined by observable gates such as process outcome, required outputs, explicit acceptance, verification commands, independent review, and staged-index integrity. Best-effort mutation observations remain diagnostic: unchanged or unknown evidence does not fail a run, and observed changes do not prove correctness.
 
-### Provider child extensions
+## Provider child extensions
 
 A child that starts without ambient extensions keeps only the files its launch names, so a model served by one of your extensions fails unless the child loads that extension too. Pi has no public way to ask which extension registered a provider, and loading an extension runs all of it, so the extension that serves the provider declares the file in the parent:
 
 ```ts
-import { registerProviderChildExtension } from "pi-subagents/provider-child-extensions";
+import { registerProviderChildExtension } from "pi-subagents-plus/provider-child-extensions";
 
 const registration = registerProviderChildExtension({ provider: "my-provider", path: import.meta.filename, owner: "my-provider-extension" });
 // later, usually on session_shutdown
@@ -508,7 +508,7 @@ Limits: an external CLI or external-job runner, or a machine placement, runs the
 
 The launch contract reports what it derived: `contract.tools.configuredExtensions` and `extensionArgs` carry the path it loads, and `tools.providerDerivedExtensions` lists `{ path, provider, model }` only when one applies, so a policy can authorize a derived file without trusting a path an agent declared itself. This field is additive and absent when nothing applies, so the contract version does not change. A background run records what it launched with in its recovery descriptor, and a resume replays that record instead of reading current settings or a registry this process may not share; a file that has since disappeared fails the resume by name.
 
-An agent registered through the runtime agent registry cannot set the switch: that definition list does not transport `providerChildExtensions`, the same as `fast`, so those agents follow `subagents.providerChildExtensions`. The definition digest ignores the setting and honors an agent's own value, so enabling it globally does not change agent identity.
+An agent registered through the runtime agent registry cannot set the switch: that definition list does not transport `providerChildExtensions`, the same as `fast`, so those agents follow `subagents.providerChildExtensions`. The definition digest ignores the global setting and includes only an agent's explicit `true`; absent or `false` keeps upstream identity. Enabling the setting globally does not change agent identity.
 
 ## Per-agent persistent memory
 

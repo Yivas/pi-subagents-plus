@@ -28,7 +28,7 @@ import { snapshotRequiredChildExtensions, type RequiredChildExtensionSnapshot } 
 import {
 	assertProviderChildExtensionNotDenied,
 	childDisablesAmbientExtensions,
-	extensionPathKey,
+	unlistedProviderChildExtensionPaths,
 	snapshotProviderChildExtensionReference,
 	type ProviderChildExtensionReference,
 } from "../../shared/provider-child-extensions.ts";
@@ -440,12 +440,9 @@ export function resolvePiLaunchToolPlan(
 	// file; the plan only forwards it and refuses to drop it under a ceiling.
 	const providerChildExtension = snapshotProviderChildExtensionReference(input.providerChildExtension);
 	if (providerChildExtension) assertProviderChildExtensionNotDenied(providerChildExtension, capabilityCeiling);
-	const listedExtensionKeys = new Set(
-		[...toolExtensionPaths, ...(input.extensions ?? []), ...(input.subagentOnlyExtensions ?? [])].map(extensionPathKey),
+	const providerChildExtensionPaths = unlistedProviderChildExtensionPaths(
+		providerChildExtension, [...toolExtensionPaths, ...(input.extensions ?? []), ...(input.subagentOnlyExtensions ?? [])],
 	);
-	const providerChildExtensionPaths = providerChildExtension && !listedExtensionKeys.has(extensionPathKey(providerChildExtension.path))
-		? [providerChildExtension.path]
-		: [];
 	const warnings: string[] = [];
 	// An explicit empty list disables ambient extensions, including model providers.
 	if (capabilityCeiling?.denyExtensions !== true && Array.isArray(input.extensions) && input.extensions.length === 0) {

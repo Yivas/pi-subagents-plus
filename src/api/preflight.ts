@@ -473,8 +473,8 @@ export async function resolveSubagentLaunchContract(input: SubagentLaunchContrac
 			preferredProvider,
 			capabilityCeiling: effectiveCapabilityCeiling,
 			externalRunner,
-			// Preflight has no machine input, so it previews the launch this host would perform.
-			remoteMachine: false,
+			// Saved placement is already known even though preflight has no per-call machine input.
+			remoteMachine: Boolean(agent.machine),
 		});
 		toolPlan = resolvePiLaunchToolPlan({
 			tools: agent.tools,

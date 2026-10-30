@@ -79,6 +79,13 @@ export function extensionPathKey(extensionPath: string): string {
 	return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
+/** Keep an agent's explicit entry instead of appending the provider's copy of the same file. */
+export function unlistedProviderChildExtensionPaths(reference: ProviderChildExtensionReference | undefined, listedPaths: readonly string[]): string[] {
+	if (!reference) return [];
+	const key = extensionPathKey(reference.path);
+	return listedPaths.some((listed) => extensionPathKey(listed) === key) ? [] : [reference.path];
+}
+
 /**
  * Declare the extension a child must load for one provider. Canonicalizing
  * here, once, means every later comparison and every launch sees the same
