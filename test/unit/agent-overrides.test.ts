@@ -52,6 +52,18 @@ describe("builtin agent overrides", () => {
 		fs.rmSync(tempProject, { recursive: true, force: true });
 	});
 
+	for (const [defaultValue, overrideValue] of [[false, true], [true, true], [true, false], [false, false]]) {
+		it(`owns the provider child switch override ${overrideValue} over global ${defaultValue}`, () => {
+			writeJson(path.join(tempHome, ".pi", "agent", "settings.json"), {
+				subagents: { providerChildExtensions: defaultValue, agentOverrides: { worker: { providerChildExtensions: overrideValue } } },
+			});
+			const worker = discoverAgentsAll(tempProject).builtin.find((agent) => agent.name === "worker");
+			assert.ok(worker);
+			assert.equal(worker.providerChildExtensions, overrideValue);
+			assert.equal(worker.providerChildExtensionsFromDefault, undefined, "an explicit override is not a settings default, even when the values match");
+		});
+	}
+
 	it("bundled builtin agents inherit the default model", () => {
 		const builtins = discoverAgentsAll(tempProject).builtin;
 		assert.ok(builtins.length > 0);

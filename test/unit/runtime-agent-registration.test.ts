@@ -274,6 +274,27 @@ describe("runtime agent registration", () => {
 		}
 	});
 
+	for (const globalValue of [true, false]) {
+		it(`applies the global provider child switch ${globalValue} during runtime discovery`, () => {
+			writeJson(path.join(tempProject, ".pi", "settings.json"), { subagents: { providerChildExtensions: globalValue } });
+			const registration = registerAgent({
+				pi,
+				name: "runtime-provider-helper",
+				definition: { description: "Runtime helper", systemPrompt: "Help.", extensions: [] },
+			});
+			try {
+				const discovered = mergeRuntimeAgents(pi, discoverAgents(tempProject, "both"), undefined, { cwd: tempProject, scope: "both" });
+				const agent = discovered.agents.find((candidate) => candidate.name === "runtime-provider-helper");
+				assert.equal(agent?.providerChildExtensions, globalValue);
+				assert.equal(agent?.providerChildExtensionsFromDefault, true);
+				const bare = mergeRuntimeAgents(pi, discoverAgents(tempProject, "both")).agents.find((candidate) => candidate.name === "runtime-provider-helper");
+				assert.equal(bare?.providerChildExtensions, undefined, "settings do not mutate the registered definition");
+			} finally {
+				registration.dispose();
+			}
+		});
+	}
+
 	it("applies subagent default model and thinking to runtime agents that declare none", () => {
 		writeJson(path.join(tempHome, ".pi", "agent", "settings.json"), {
 			subagents: { defaultModel: "openai/gpt-5-mini", defaultThinking: "low" },

@@ -1601,7 +1601,10 @@ function applyBuiltinOverride(
 		else next.modelProvider = override.defaultProvider;
 	}
 	if (override.fast !== undefined) next.fast = override.fast;
-	if (override.providerChildExtensions !== undefined) next.providerChildExtensions = override.providerChildExtensions;
+	if (override.providerChildExtensions !== undefined) {
+		next.providerChildExtensions = override.providerChildExtensions;
+		delete next.providerChildExtensionsFromDefault;
+	}
 	if (override.thinking !== undefined) { if (override.thinking === false) delete next.thinking; else next.thinking = override.thinking; }
 	if (override.systemPromptMode !== undefined) next.systemPromptMode = override.systemPromptMode;
 	if (override.inheritProjectContext !== undefined) next.inheritProjectContext = override.inheritProjectContext;
@@ -1747,6 +1750,8 @@ function runtimeAgentOverrides(settings: SubagentSettings): SubagentSettings {
  * `fast`, and `thinking` fields of `agentOverrides.<name>`, user then project,
  * provider-scoped overrides included. Other override fields are ignored for
  * runtime agents. A definition `model` still wins over `defaultModel`.
+ * The global `providerChildExtensions` default also applies, without becoming
+ * part of the extension-owned definition.
  */
 export function applyRuntimeAgentSettings(agents: AgentConfig[], context: RuntimeAgentSettingsContext): AgentConfig[] {
 	if (agents.length === 0) return agents;
@@ -1755,7 +1760,10 @@ export function applyRuntimeAgentSettings(agents: AgentConfig[], context: Runtim
 	const defaultProvider = resolveSubagentDefaultProvider(user, project, sources.projectSettingsPath);
 	const defaultModel = resolveSubagentDefaultModel(user, project, sources.userSettingsPath, sources.projectSettingsPath, defaultProvider);
 	const defaultThinking = resolveSubagentDefaultThinking(user, project, sources.projectSettingsPath);
-	const withDefaults = applySubagentDefaultThinking(applySubagentDefaultModel(agents, defaultModel, defaultProvider), defaultThinking);
+	const withDefaults = applySubagentProviderChildExtensions(
+		applySubagentDefaultThinking(applySubagentDefaultModel(agents, defaultModel, defaultProvider), defaultThinking),
+		resolveSubagentProviderChildExtensions(user, project, sources.projectSettingsPath),
+	);
 	return applyCustomAgentOverrides(withDefaults, runtimeAgentOverrides(user), runtimeAgentOverrides(project), sources.userSettingsPath, sources.projectSettingsPath);
 }
 

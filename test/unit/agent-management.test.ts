@@ -87,6 +87,26 @@ describe("agent management config parsing", () => {
 		});
 	}
 
+	for (const globalValue of [true, false]) {
+		it(`does not persist the inherited provider child switch ${globalValue} when updating only the prompt`, () => {
+			fs.writeFileSync(path.join(tempDir, ".pi", "settings.json"), JSON.stringify({ subagents: { providerChildExtensions: globalValue } }));
+			const agentsDir = path.join(tempDir, ".pi", "agents");
+			fs.mkdirSync(agentsDir, { recursive: true });
+			const agentPath = path.join(agentsDir, "doc-helper.md");
+			fs.writeFileSync(agentPath, "---\nname: doc-helper\ndescription: Helper\n---\nOriginal prompt.\n");
+			const ctx = { cwd: tempDir, modelRegistry: { getAvailable: () => [] } };
+			assert.equal(discoverAgents(tempDir, "project").agents.find((agent) => agent.name === "doc-helper")?.providerChildExtensions, globalValue);
+
+			const updated = handleUpdate({ agent: "doc-helper", agentScope: "project", config: { systemPrompt: "Updated prompt." } }, ctx);
+
+			assert.equal(updated.isError, false, readText(updated));
+			assert.doesNotMatch(fs.readFileSync(agentPath, "utf-8"), /providerChildExtensions:/);
+			const loaded = discoverAgents(tempDir, "project").agents.find((agent) => agent.name === "doc-helper");
+			assert.equal(loaded?.systemPrompt, "Updated prompt.");
+			assert.equal(loaded?.providerChildExtensionsFromDefault, true);
+		});
+	}
+
 	it("surfaces JSON parse errors for create config strings", () => {
 		const result = handleCreate(
 			{ config: '{"name":' },

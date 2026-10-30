@@ -227,16 +227,19 @@ describe("provider child extension in the launch plan", () => {
 		);
 	});
 
-	it("leaves lists and both digests identical to upstream when nothing is attached", () => {
-		const target = agent({ name: "contract-worker" });
-		const upstreamPlan = resolvePiLaunchToolPlan({ extensions: [] });
-		const offPlan = resolvePiLaunchToolPlan({ extensions: [], providerChildExtension: undefined });
-		assert.deepEqual(offPlan.extensionArgs, upstreamPlan.extensionArgs);
-		assert.deepEqual(offPlan.configuredExtensions, upstreamPlan.configuredExtensions);
-		const binding = (toolPlan: typeof upstreamPlan) => resolveLaunchBinding({ agent: target, task: "task", systemPrompt: "prompt", toolPlan });
-		assert.equal(binding(offPlan).launchContractDigest, binding(upstreamPlan).launchContractDigest);
-		assert.equal(binding(offPlan).definitionDigest, binding(upstreamPlan).definitionDigest);
-	});
+	for (const value of [undefined, false]) {
+		it(`keeps the base definition and launch digests with providerChildExtensions=${value}`, () => {
+			const target = agent({ name: "contract-worker", ...(value === undefined ? {} : { providerChildExtensions: value }) });
+			const plan = resolvePiLaunchToolPlan({ tools: ["read"], extensions: [] });
+			assert.deepEqual(plan.configuredExtensions, []);
+			assert.deepEqual(plan.extensionArgs, plan.runtimeExtensions);
+			// Calculated independently with git show 74400591:src/shared/launch-contract.ts.
+			// Empty extensionArgs keep this fixture independent of the checkout's absolute path.
+			const binding = resolveLaunchBinding({ agent: target, task: "task", systemPrompt: "prompt", toolPlan: { ...plan, extensionArgs: [] } });
+			assert.equal(binding.definitionDigest, "bbbe4bc712145cd515697ac1ec7831c457e58fc6d80cdddd8232833341483962");
+			assert.equal(binding.launchContractDigest, "a4ea67fd47202acd9a07a3336561e6f42c6d656b049779f3e3cc080f67bb10f2");
+		});
+	}
 });
 
 describe("provider child extension in the definition digest", () => {
@@ -244,6 +247,6 @@ describe("provider child extension in the definition digest", () => {
 		const base = agentDefinitionDigest(agent());
 		assert.equal(agentDefinitionDigest(agent({ providerChildExtensions: true, providerChildExtensionsFromDefault: true })), base);
 		assert.notEqual(agentDefinitionDigest(agent({ providerChildExtensions: true })), base);
-		assert.notEqual(agentDefinitionDigest(agent({ providerChildExtensions: false })), base);
+		assert.equal(agentDefinitionDigest(agent({ providerChildExtensions: false })), base);
 	});
 });

@@ -262,6 +262,10 @@ export function editableAgentConfig(agent: AgentConfig): AgentConfig {
 		const next = { ...config };
 		if (!hasDeclaredField("model")) delete next.model;
 		if (!hasDeclaredField("thinking")) delete next.thinking;
+		if (agent.providerChildExtensionsFromDefault) {
+			delete next.providerChildExtensions;
+			delete next.providerChildExtensionsFromDefault;
+		}
 		return next;
 	};
 	const {
