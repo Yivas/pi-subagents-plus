@@ -1784,6 +1784,7 @@ describe("scripted workflow runtime", () => {
 			["reviewer", "Read-only review. Do not edit files. git stash."],
 			["reviewer", "Read-only review. Do not edit files. git revert abc123."],
 			["reviewer", "Read-only review. Do not edit files. Stage the changed files."],
+			["reviewer", "Read-only review. Do not edit files. git --no-pager commit -m fix."],
 			["reviewer", "Read-only review. Do not edit files. git reset --hard"],
 			["reviewer", "Read-only review. Do not edit files. git restore src/workflows/scripted-workflow.ts"],
 		]) {
@@ -1815,6 +1816,50 @@ describe("scripted workflow runtime", () => {
 			);
 			assert.deepEqual(launches, ["writer"]);
 		}
+	});
+
+	it("scans an adversarial git option stream in bounded time", async () => {
+		const recovery = {
+			status: "available-for-review" as const,
+			reason: "acceptance-metadata-rejected" as const,
+			reportPath: "/tmp/writer-report.md",
+			reportHash: "a".repeat(64),
+		};
+		// 198k characters of bare option tokens. The previous pattern backtracked exponentially on
+		// this shape (123 characters already took seconds), so the scan has to stay linear.
+		const optionStream = `git${" -a".repeat(66_000)}`;
+		const launches: string[] = [];
+		const startedAt = performance.now();
+		const result = await runWorkflowScript({
+			script: `
+				const writer = await runs.run("writer", { agent: "worker", task: "write" });
+				const review = await runs.run("review", { agent: "reviewer", task: ${JSON.stringify(`Read-only review. Do not edit files. ${optionStream}`)}, acceptance: false });
+				return review.ok;
+			`,
+			launch(key) {
+				launches.push(key);
+				if (key === "writer") {
+					return Promise.resolve({
+						key,
+						ok: false,
+						output: "saved writer report",
+						error: "Acceptance rejected: malformed acceptance-report",
+						runId: "writer-run",
+						outputReference: recovery.reportPath,
+						recovery,
+						artifactPaths: [recovery.reportPath],
+						results: [{ acceptance: { status: "rejected", recovery } }],
+					});
+				}
+				return Promise.resolve({ key, ok: true, output: "review complete", runId: "review-run", artifactPaths: [] });
+			},
+			async status(key) { return { key, ok: true, output: "ok", artifactPaths: [] }; },
+		});
+		const elapsedMs = performance.now() - startedAt;
+
+		assert.deepEqual(launches, ["writer", "review"]);
+		assert.equal(result.value, true);
+		assert.ok(elapsedMs < 10_000, `the read-only review scan took ${Math.round(elapsedMs)} ms`);
 	});
 
 	it("blocks mission state writes after a durable acceptance metadata rejection", async () => {
