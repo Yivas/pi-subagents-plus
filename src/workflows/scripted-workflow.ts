@@ -274,8 +274,103 @@ const RECOVERY_REVIEW_NO_ANAPHORIC_MUTATION_CLAUSE_PATTERN = /\b(?:do not|don't|
 const RECOVERY_REVIEW_NO_DELEGATION_CLAUSE_PATTERN = /\b(?:do not|don't|must not)\s+(?:(?:launch|start|spawn|run)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*(?:workers?|reviewers?|agents?|subagents?|children|child|runs?)|(?:get|let|request|hand\s+off|assign|use|have|tell)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*(?:workers?|reviewers?|agents?|subagents?|children|child)|(?:get|let|have|tell|request)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*(?:review|implementation|fix(?:es)?|changes?|follow-up)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*\b(?:from|with|via|by)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*(?:workers?|reviewers?|agents?|subagents?|children|child)|ask\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*(?:(?:workers?|reviewers?|agents?|subagents?|children|child)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*\b(?:continue|implement|review|fix|edit|write|modify|change|patch|update|delete|remove|create|follow-up)|(?:review|implementation|fix(?:es)?|changes?|follow-up)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*\b(?:from|via)\b(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n])*(?:workers?|reviewers?|agents?|subagents?|children|child)))\b/gi;
 const RECOVERY_REVIEW_DELEGATION_PATTERN = /\b(?:launch|start|spawn|run)\b[^,.;!?\n]*(?:workers?|reviewers?|agents?|subagents?|children|child|runs?)\b|\b(?:delegate|hand\s+off|assign)\s+(?:remediation|implementation(?:\s+follow-up)?|changes?|fix(?:es)?|follow-up)\s+to\s+(?:(?:a|an|the)\s+)?(?:workers?|reviewers?|agents?|subagents?|children|child)\b|\b(?:get|let|have|tell|request)\b[^,.;!?\n]*(?:workers?|reviewers?|agents?|subagents?|children|child)\b[^,.;!?\n]*\b(?:continue|implement|review|fix|edit|write|modify|change|patch|update|delete|remove|create|follow-up)\b|\b(?:get|let|have|tell|request)\b[^,.;!?\n]*(?:review|implementation|fix(?:es)?|changes?|follow-up)\b[^,.;!?\n]*\b(?:from|with|via|by)\b[^,.;!?\n]*(?:workers?|reviewers?|agents?|subagents?|children|child)\b|\bask\b[^,.;!?\n]*(?:(?:workers?|reviewers?|agents?|subagents?|children|child)\b[^,.;!?\n]*\b(?:continue|implement|review|fix|edit|write|modify|change|patch|update|delete|remove|create|follow-up)|(?:review|implementation|fix(?:es)?|changes?|follow-up)\b[^,.;!?\n]*\b(?:from|via)\b[^,.;!?\n]*(?:workers?|reviewers?|agents?|subagents?|children|child))\b|\buse\b[^,.;!?\n]*(?:workers?|reviewers?|agents?|subagents?|children|child|runs?)\s+(?:for|to)\s+(?:implementation|follow-up|remediation|fix|edit|write|modify|change|patch|update|delete|remove|create)\b/i;
 const RECOVERY_REVIEW_ANAPHORIC_MUTATION_PATTERN = /\b(?:do|run|execute|perform|apply)\s+(?:it|that|this|(?:the\s+)?(?:(?:\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|last|next|previous(?:ly)?|prior|above|quoted|blocked)\s+){0,4}(?:command|example|operation|action|phrase|instruction|request|one))(?!(?:\s+(?:(?:now|still|also|already)\s+)*(?:is|are|remains?)\s+blocked\b))(?:(?:[\s,]+\w+){0,4}[\s,]+anyway|(?:(?!\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b)[^,.;!?\n]){0,80})(?=\s*(?:[,.;!?\n)]|\b(?:and|but|then|however|nevertheless|nonetheless|yet)\b|$))/i;
-const RECOVERY_REVIEW_DESTRUCTIVE_COMMAND_PATTERN = /(?:^|[\s;,.`'"([{])(?:\S*\/)?(?:rm|rmdir|unlink|truncate|mv|cp|chmod|chown)\b|\bgit\b(?:\s+(?:-[A-Za-z]|--[A-Za-z0-9-]+)(?:=(?:"[^"\n]*"|'[^'\n]*'|[^\s"']+))?(?:\s+(?!-)(?:"[^"\n]*"|'[^'\n]*'|[^\s"']+))?)*\s+(?:add|branch|cherry-pick|clean|commit|merge|rebase|reset|restore|revert|stash|tag|checkout|switch)\b/i;
+const RECOVERY_REVIEW_MUTATING_PATH_COMMAND_PATTERN = /(?:^|[\s;,.`'"([{])(?:\S*\/)?(?:rm|rmdir|unlink|truncate|mv|cp|chmod|chown)\b/i;
+const RECOVERY_REVIEW_GIT_OPTION_PATTERN = /^(?:-[A-Za-z]|--[A-Za-z0-9-]+)(?:=(?:"[^"\n]*"|'[^'\n]*'|\S+))?$/;
+const RECOVERY_REVIEW_GIT_MUTATING_SUBCOMMAND_PATTERN = /^(?:add|branch|cherry-pick|clean|commit|merge|rebase|reset|restore|revert|stash|tag|checkout|switch)\b/i;
+const RECOVERY_REVIEW_GIT_WORD_TAIL_PATTERN = /(?:^|\W)git$/i;
+const RECOVERY_REVIEW_WORD_CHARACTER_PATTERN = /^\w$/;
+const RECOVERY_REVIEW_TOKEN_SEPARATOR_PATTERN = /^\s$/;
 const RECOVERY_REVIEW_DASH_LIVE_ACTION_PATTERN = /(?:[—–]|--|\s-\s|:|\s\/\s)\s*(?:then\s+)?(?:(?:add|append|apply|change|cherry[ -]pick|clean|commit|copy|create|delete|edit|fix|implement|insert|make|merge|move|modify|mutate|open|patch|prepend|push|rebase|refactor|remove|rename|replace|revert|revise|rewrite|save|stage|stash|tag|touch|update|write)\b|(?:launch|start|spawn|run)\b[^,.;!?\n]*(?:workers?|reviewers?|agents?|subagents?|children|child|runs?)\b|(?:\S*\/)?(?:rm|rmdir|unlink|truncate|mv|cp|chmod|chown)\b|git\b[^,.;!?\n]*\b(?:add|branch|cherry-pick|clean|commit|merge|rebase|reset|restore|revert|stash|tag|checkout|switch)\b)/i;
+
+// A mutating git subcommand can sit behind any number of options, and an option takes the next
+// word as its value even when that word starts with a dash, as in git -C -1 reset. The regular
+// expression this replaces spelled that out as nested optional groups, so every option word gave
+// the engine another way to split the line: a run of forty option words took seconds, and
+// repeated "git -a" words stayed quadratic once the overlapping branches were gone. The scan below
+// reads the words once and carries whether the current word can still be the subcommand.
+function mentionsMutatingGitCommand(text: string): boolean {
+	// liveTwoWordsBack and liveOneWordBack say whether the previous words sit where a git option or
+	// the subcommand can appear, and the option flags say whether they were read as the option that
+	// would make the current word its value.
+	let liveTwoWordsBack: boolean = false;
+	let optionTwoWordsBack: boolean = false;
+	let liveOneWordBack: boolean = false;
+	let optionOneWordBack: boolean = false;
+	let afterGitWord: boolean = false;
+	let start = 0;
+	while (start < text.length) {
+		if (isTokenSeparator(text.charAt(start))) {
+			start++;
+			continue;
+		}
+		const quotedEnd = quotedValueEnd(text, start);
+		const wordEnd = quotedEnd === -1 ? plainWordEnd(text, start) : quotedEnd;
+		const gitCut = quotedEnd === -1 ? -1 : separatedGitWordEnd(text, start, wordEnd);
+		const stop = gitCut === -1 ? wordEnd : gitCut;
+		const word = text.slice(start, stop);
+		const liveWord: boolean = afterGitWord
+			|| (liveOneWordBack && optionOneWordBack)
+			|| (liveTwoWordsBack && optionTwoWordsBack);
+		if (liveWord && RECOVERY_REVIEW_GIT_MUTATING_SUBCOMMAND_PATTERN.test(word)) return true;
+		const isOption = isGitOptionWord(word);
+		liveTwoWordsBack = liveOneWordBack;
+		optionTwoWordsBack = optionOneWordBack;
+		liveOneWordBack = liveWord;
+		optionOneWordBack = isOption;
+		afterGitWord = RECOVERY_REVIEW_GIT_WORD_TAIL_PATTERN.test(word);
+		start = stop;
+	}
+	return false;
+}
+
+function mentionsMutatingCommand(text: string): boolean {
+	return RECOVERY_REVIEW_MUTATING_PATH_COMMAND_PATTERN.test(text) || mentionsMutatingGitCommand(text);
+}
+
+function isTokenSeparator(character: string): boolean {
+	return RECOVERY_REVIEW_TOKEN_SEPARATOR_PATTERN.test(character);
+}
+
+function isGitOptionWord(word: string): boolean {
+	return RECOVERY_REVIEW_GIT_OPTION_PATTERN.test(word);
+}
+
+// One word runs up to the next separator, and a closed quoted value counts as one word even when
+// it holds separators. A value that leaves the quote open, or closes it inside a longer word, is
+// read as the plain word the replaced pattern matched with \S+.
+function quotedValueEnd(text: string, start: number): number {
+	const quote = text.charAt(start);
+	if (quote !== '"' && quote !== "'") return -1;
+	for (let index = start + 1; index < text.length; index++) {
+		const character = text.charAt(index);
+		if (character === "\n") return -1;
+		if (character !== quote) continue;
+		if (index + 1 === text.length || isTokenSeparator(text.charAt(index + 1))) return index + 1;
+		return -1;
+	}
+	return -1;
+}
+
+function plainWordEnd(text: string, start: number): number {
+	let end = start;
+	while (end < text.length && !isTokenSeparator(text.charAt(end))) end++;
+	return end;
+}
+
+// A git word only starts a command line when a separator follows it, so a quoted value that keeps
+// going after the word splits there: "git reset" holds the git word and then the subcommand.
+function separatedGitWordEnd(text: string, start: number, end: number): number {
+	for (let position = start; position + 3 < end; position++) {
+		if (!isGitWordAt(text, position)) continue;
+		if (isTokenSeparator(text.charAt(position + 3))) return position + 3;
+	}
+	return -1;
+}
+
+function isGitWordAt(text: string, position: number): boolean {
+	if (text.slice(position, position + 3).toLowerCase() !== "git") return false;
+	return position === 0 || !RECOVERY_REVIEW_WORD_CHARACTER_PATTERN.test(text.charAt(position - 1));
+}
 
 function isExplicitReadOnlyRecoveryReview(params: Record<string, unknown>): boolean {
 	const agent = typeof params.agent === "string" ? params.agent.trim() : "";
@@ -353,11 +448,11 @@ function isExplicitReadOnlyRecoveryReview(params: Record<string, unknown>): bool
 		&& agent !== ""
 		&& /\b(?:advisor|oracle|review|reviewer)\b/i.test(agent)
 		&& RECOVERY_REVIEW_READ_ONLY_PATTERN.test(task)
-		&& !RECOVERY_REVIEW_DESTRUCTIVE_COMMAND_PATTERN.test(taskDestructiveCommandText)
+		&& !mentionsMutatingCommand(taskDestructiveCommandText)
 		&& !RECOVERY_REVIEW_MUTATION_VERB_PATTERN.test(taskMutationText)
 		&& !RECOVERY_REVIEW_DELEGATION_PATTERN.test(taskMutationText)
 		&& !RECOVERY_REVIEW_ANAPHORIC_MUTATION_PATTERN.test(taskMutationText)
-		&& !RECOVERY_REVIEW_DESTRUCTIVE_COMMAND_PATTERN.test(taskMutationText)
+		&& !mentionsMutatingCommand(taskMutationText)
 		&& !RECOVERY_REVIEW_DASH_LIVE_ACTION_PATTERN.test(taskDashLiveActionText);
 }
 

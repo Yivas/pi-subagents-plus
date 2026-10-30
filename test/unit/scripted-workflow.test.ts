@@ -1771,6 +1771,8 @@ describe("scripted workflow runtime", () => {
 			["reviewer", "Read-only review. Do not edit files. /usr/bin/rm -rf ."],
 			["reviewer", "Read-only review. Do not edit files. /usr/local/bin/rm -rf ."],
 			["reviewer", "Read-only review. Do not edit files. Validation after fix: git -C . reset --hard."],
+			["reviewer", "Read-only review. Do not edit files. git -C -1 reset --hard"],
+			["reviewer", "Read-only review. Do not edit files. git -C --hard reset"],
 			["reviewer", "Read-only review. Do not edit files. git --work-tree . reset --hard."],
 			["reviewer", "Read-only review. Do not edit files. git --work-tree \"/tmp/my repo\" reset --hard."],
 			["reviewer", "Read-only review. Do not edit files. git --work-tree '/tmp/my repo' reset --hard."],
@@ -1825,41 +1827,47 @@ describe("scripted workflow runtime", () => {
 			reportPath: "/tmp/writer-report.md",
 			reportHash: "a".repeat(64),
 		};
-		// 198k characters of bare option tokens. The previous pattern backtracked exponentially on
-		// this shape (123 characters already took seconds), so the scan has to stay linear.
-		const optionStream = `git${" -a".repeat(66_000)}`;
-		const launches: string[] = [];
-		const startedAt = performance.now();
-		const result = await runWorkflowScript({
-			script: `
-				const writer = await runs.run("writer", { agent: "worker", task: "write" });
-				const review = await runs.run("review", { agent: "reviewer", task: ${JSON.stringify(`Read-only review. Do not edit files. ${optionStream}`)}, acceptance: false });
-				return review.ok;
-			`,
-			launch(key) {
-				launches.push(key);
-				if (key === "writer") {
-					return Promise.resolve({
-						key,
-						ok: false,
-						output: "saved writer report",
-						error: "Acceptance rejected: malformed acceptance-report",
-						runId: "writer-run",
-						outputReference: recovery.reportPath,
-						recovery,
-						artifactPaths: [recovery.reportPath],
-						results: [{ acceptance: { status: "rejected", recovery } }],
-					});
-				}
-				return Promise.resolve({ key, ok: true, output: "review complete", runId: "review-run", artifactPaths: [] });
-			},
-			async status(key) { return { key, ok: true, output: "ok", artifactPaths: [] }; },
-		});
-		const elapsedMs = performance.now() - startedAt;
+		// Two shapes the earlier patterns could not finish, both around 200k characters. The bare
+		// option run backtracked exponentially once the pattern overlapped (123 characters already
+		// took seconds), and repeated "git -a" words stayed quadratic even after that fix, because
+		// every git word could also be read as the value of the option before it. Both stay linear.
+		for (const optionStream of [`git${" -a".repeat(66_000)}`, "git -a ".repeat(25_000)]) {
+			const launches: string[] = [];
+			const startedAt = performance.now();
+			const result = await runWorkflowScript({
+				script: `
+					const writer = await runs.run("writer", { agent: "worker", task: "write" });
+					const review = await runs.run("review", { agent: "reviewer", task: ${JSON.stringify(`Read-only review. Do not edit files. ${optionStream}`)}, acceptance: false });
+					return review.ok;
+				`,
+				launch(key) {
+					launches.push(key);
+					if (key === "writer") {
+						return Promise.resolve({
+							key,
+							ok: false,
+							output: "saved writer report",
+							error: "Acceptance rejected: malformed acceptance-report",
+							runId: "writer-run",
+							outputReference: recovery.reportPath,
+							recovery,
+							artifactPaths: [recovery.reportPath],
+							results: [{ acceptance: { status: "rejected", recovery } }],
+						});
+					}
+					return Promise.resolve({ key, ok: true, output: "review complete", runId: "review-run", artifactPaths: [] });
+				},
+				async status(key) { return { key, ok: true, output: "ok", artifactPaths: [] }; },
+			});
+			const elapsedMs = performance.now() - startedAt;
 
-		assert.deepEqual(launches, ["writer", "review"]);
-		assert.equal(result.value, true);
-		assert.ok(elapsedMs < 10_000, `the read-only review scan took ${Math.round(elapsedMs)} ms`);
+			assert.deepEqual(launches, ["writer", "review"]);
+			assert.equal(result.value, true);
+			assert.ok(
+				elapsedMs < 10_000,
+				`the read-only review scan took ${Math.round(elapsedMs)} ms on a ${optionStream.length}-character prompt`,
+			);
+		}
 	});
 
 	it("blocks mission state writes after a durable acceptance metadata rejection", async () => {
