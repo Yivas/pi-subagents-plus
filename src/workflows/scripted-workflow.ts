@@ -292,7 +292,7 @@ const RECOVERY_REVIEW_DASH_GIT_AT_PATTERN = /git\b/iy;
 const RECOVERY_REVIEW_DASH_GIT_COMMAND_AT_PATTERN = /\b(?:add|branch|cherry-pick|clean|commit|merge|rebase|reset|restore|revert|stash|tag|checkout|switch)\b/iy;
 const RECOVERY_REVIEW_DASH_FILE_COMMAND_AT_PATTERN = /(?:rm|rmdir|unlink|truncate|mv|cp|chmod|chown)\b/iy;
 const RECOVERY_REVIEW_DASH_THEN_AT_PATTERN = /then/iy;
-const RECOVERY_REVIEW_DASH_LINE_BREAK_CHARACTERS = ",.;!?\n";
+const RECOVERY_REVIEW_DASH_LINE_STOP_CHARACTERS = ",.;!?\n";
 const RECOVERY_REVIEW_WHITESPACE_CHARACTER_PATTERN = /^\s$/;
 
 // A sticky pattern is one branch of the former pattern: lastIndex anchors it where the separator
@@ -334,7 +334,7 @@ function mentionsDashLiveAction(text: string): boolean {
 	const pathCommandAhead = new Uint8Array(text.length + 1);
 	for (let index = text.length - 1; index >= 0; index--) {
 		const character = text.charAt(index);
-		const lineCharacter = !RECOVERY_REVIEW_DASH_LINE_BREAK_CHARACTERS.includes(character);
+		const lineCharacter = !RECOVERY_REVIEW_DASH_LINE_STOP_CHARACTERS.includes(character);
 		const pathCharacter = !RECOVERY_REVIEW_WHITESPACE_CHARACTER_PATTERN.test(character);
 		workerAhead[index] = matchesDashBranchAt(RECOVERY_REVIEW_DASH_WORKER_AT_PATTERN, text, index) || (lineCharacter && workerAhead[index + 1] === 1) ? 1 : 0;
 		gitCommandAhead[index] = matchesDashBranchAt(RECOVERY_REVIEW_DASH_GIT_COMMAND_AT_PATTERN, text, index) || (lineCharacter && gitCommandAhead[index + 1] === 1) ? 1 : 0;

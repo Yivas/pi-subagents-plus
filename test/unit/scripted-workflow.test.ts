@@ -1954,7 +1954,7 @@ describe("scripted workflow runtime", () => {
 			reportHash: "a".repeat(64),
 		};
 		// Each prompt repeats one separator family that the former pattern rescanned from every
-		// separator: 150,000 to 320,000 characters took 15 to 21 seconds before and are linear now.
+		// separator: 150,000 to 280,000 characters took 12 to 21 seconds before and are linear now.
 		// The elapsed-time assertion includes the workflow process.
 		for (const separatorStream of ["--/".repeat(90_000), "—/".repeat(75_000), ":/".repeat(90_000), "-- git ".repeat(40_000)]) {
 			const launches: string[] = [];
