@@ -12,7 +12,7 @@ import { test } from "node:test";
 // this scenario checks their combined observable effect, not only the provider bridge.
 const upstreamCommit = "a04617faa1f4d7daf631fefc10afc76412c6fe4a";
 const upstreamTree = "04e1b4be1d2e92ca593626153c07969d1a08d4e6";
-const archiveSha256 = "c2fb053620ca79af4c598fe0d9b3fc8776377b7b9f241fd81f6a527c92b49a1a";
+const archiveSha256 = "d2a3cb2b5d22e3bf6e822329b6919850f642ff69952cd13a814221b4abe464da";
 const repo = path.resolve(import.meta.dirname, "../..");
 const scenario = path.join(repo, "test/support/upstream-identity-scenario.mjs");
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -79,7 +79,9 @@ test("plus with fork features off is byte-identical to its upstream base in a re
 	};
 	let passed = false;
 	try {
-		const git = (...args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+		// git archive applies checkout conversions too. Pin LF for both source trees, independently
+		// of the operator's Git settings; observed model/event/session bytes remain untouched.
+		const git = (...args: string[]) => execFileSync("git", ["-c", "core.autocrlf=false", "-c", "core.eol=lf", ...args], { cwd: repo, encoding: "utf8" }).trim();
 		assert.equal(git("rev-parse", `${upstreamCommit}^{commit}`), upstreamCommit, "base object must exist locally; use a full checkout, never a moving network ref");
 		assert.equal(git("rev-parse", `${upstreamCommit}^{tree}`), upstreamTree);
 		const archive = path.join(root, "upstream.tar");
