@@ -277,8 +277,115 @@ const RECOVERY_REVIEW_ANAPHORIC_MUTATION_PATTERN = /\b(?:do|run|execute|perform|
 // A path need not cross another command-start separator: the same command can match from
 // the last such separator before its slash. Excluding those characters from the path prefix
 // preserves detection while preventing overlapping starts from rescanning the same suffix.
-const RECOVERY_REVIEW_DESTRUCTIVE_COMMAND_PATTERN = /(?:^|[\s;,.`'"([{])(?:[^\s;,.`'"([{]*\/)?(?:rm|rmdir|unlink|truncate|mv|cp|chmod|chown)\b|\bgit\b(?:\s+(?:-[A-Za-z](?:\s+(?:"[^"\n]*"|'[^'\n]*'|\S+))?|--(?:git-dir|work-tree|namespace|exec-path|config-env)(?:=(?:"[^"\n]*"|'[^'\n]*'|\S+)|\s+(?:"[^"\n]*"|'[^'\n]*'|\S+))|--[A-Za-z0-9-]+(?:=(?:"[^"\n]*"|'[^'\n]*'|\S+))?))*\s+(?:add|branch|cherry-pick|clean|commit|merge|rebase|reset|restore|revert|stash|tag|checkout|switch)\b/i;
+const RECOVERY_REVIEW_MUTATING_PATH_COMMAND_PATTERN = /(?:^|[\s;,.`'"([{])(?:[^\s;,.`'"([{]*\/)?(?:rm|rmdir|unlink|truncate|mv|cp|chmod|chown)\b/i;
+const RECOVERY_REVIEW_WORD_CHARACTER_PATTERN = /^\w$/;
 const RECOVERY_REVIEW_DASH_LIVE_ACTION_PATTERN = /(?:[—–]|--|\s-\s|:|\s\/\s)\s*(?:then\s+)?(?:(?:add|append|apply|change|cherry[ -]pick|clean|commit|copy|create|delete|edit|fix|implement|insert|make|merge|move|modify|mutate|open|patch|prepend|push|rebase|refactor|remove|rename|replace|revert|revise|rewrite|save|stage|stash|tag|touch|update|write)\b|(?:launch|start|spawn|run)\b[^,.;!?\n]*(?:workers?|reviewers?|agents?|subagents?|children|child|runs?)\b|(?:\S*\/)?(?:rm|rmdir|unlink|truncate|mv|cp|chmod|chown)\b|git\b[^,.;!?\n]*\b(?:add|branch|cherry-pick|clean|commit|merge|rebase|reset|restore|revert|stash|tag|checkout|switch)\b)/i;
+
+type GitCommandState = {
+	edges: Array<{ character: RegExp; next: GitCommandState }>;
+	epsilon: GitCommandState[];
+};
+
+// This is the git branch of the former /i pattern, not a shell parser. afterOption and
+// afterSpace implement (\s+OPTION)*\s+; short/special options can also take \s+V,
+// generic long options only =V. V keeps "[^"\n]*", '[^'\n]*' and \S+ alive together.
+function createMutatingGitStates(): { start: GitCommandState; accept: GitCommandState } {
+	const state = (): GitCommandState => ({ edges: [], epsilon: [] });
+	const edge = (from: GitCommandState, character: RegExp, next: GitCommandState): void => {
+		from.edges.push({ character, next });
+	};
+	const literal = (from: GitCommandState, word: string, end: GitCommandState): void => {
+		for (let index = 0; index < word.length; index++) {
+			const next = index === word.length - 1 ? end : state();
+			edge(from, new RegExp(word.charAt(index), "i"), next);
+			from = next;
+		}
+	};
+	const start = state();
+	const accept = state();
+	const afterOption = state();
+	const afterSpace = state();
+	literal(start, "git", afterOption);
+	edge(afterOption, /\s/, afterSpace);
+	edge(afterSpace, /\s/, afterSpace);
+	for (const command of ["add", "branch", "cherry-pick", "clean", "commit", "merge", "rebase", "reset", "restore", "revert", "stash", "tag", "checkout", "switch"]) {
+		literal(afterSpace, command, accept);
+	}
+
+	const value = state();
+	const beforeSeparatedValue = state();
+	const separatedValue = state();
+	edge(beforeSeparatedValue, /\s/, separatedValue);
+	edge(separatedValue, /\s/, separatedValue);
+	separatedValue.epsilon.push(value);
+
+	const shortDash = state();
+	const shortOption = state();
+	literal(afterSpace, "-", shortDash);
+	edge(shortDash, /[A-Za-z]/, shortOption);
+	shortOption.epsilon.push(afterOption, beforeSeparatedValue);
+
+	const longStart = state();
+	const longName = state();
+	literal(shortDash, "-", longStart);
+	edge(longStart, /[A-Za-z0-9-]/, longName);
+	edge(longName, /[A-Za-z0-9-]/, longName);
+	longName.epsilon.push(afterOption);
+	edge(longName, /=/, value);
+	for (const option of ["git-dir", "work-tree", "namespace", "exec-path", "config-env"]) {
+		const specialOption = state();
+		literal(longStart, option, specialOption);
+		edge(specialOption, /=/, value);
+		specialOption.epsilon.push(beforeSeparatedValue);
+	}
+
+	for (const [quote, body] of [[/"/, /[^"\n]/], [/'/, /[^'\n]/]] as const) {
+		const quotedValue = state();
+		edge(value, quote, quotedValue);
+		edge(quotedValue, body, quotedValue);
+		edge(quotedValue, quote, afterOption);
+	}
+	const plainValue = state();
+	edge(value, /\S/, plainValue);
+	edge(plainValue, /\S/, plainValue);
+	plainValue.epsilon.push(afterOption);
+	return { start, accept };
+}
+
+const MUTATING_GIT_STATES = createMutatingGitStates();
+
+function mentionsMutatingGitCommand(text: string): boolean {
+	let active = new Set<GitCommandState>();
+	let next = new Set<GitCommandState>();
+	const addState = (states: Set<GitCommandState>, state: GitCommandState): void => {
+		if (states.has(state)) return;
+		states.add(state);
+		for (const reachable of state.epsilon) addState(states, reachable);
+	};
+	// Inject starts even inside another candidate's value. Deduplicating states at each UTF-16
+	// position preserves every reading without backtracking or suffix rescans: O(n*m) time and
+	// O(m) space for this fixed graph of m states. /i (without /u) uses ASCII word boundaries.
+	for (let position = 0; position <= text.length; position++) {
+		const character = text.charAt(position);
+		const previousIsWord = RECOVERY_REVIEW_WORD_CHARACTER_PATTERN.test(text.charAt(position - 1));
+		const currentIsWord = RECOVERY_REVIEW_WORD_CHARACTER_PATTERN.test(character);
+		if (active.has(MUTATING_GIT_STATES.accept) && previousIsWord !== currentIsWord) return true;
+		if (!previousIsWord) addState(active, MUTATING_GIT_STATES.start);
+		if (position === text.length) break;
+		next.clear();
+		for (const state of active) {
+			for (const edge of state.edges) {
+				if (edge.character.test(character)) addState(next, edge.next);
+			}
+		}
+		[active, next] = [next, active];
+	}
+	return false;
+}
+
+function mentionsMutatingCommand(text: string): boolean {
+	return RECOVERY_REVIEW_MUTATING_PATH_COMMAND_PATTERN.test(text) || mentionsMutatingGitCommand(text);
+}
 
 function isExplicitReadOnlyRecoveryReview(params: Record<string, unknown>): boolean {
 	const agent = typeof params.agent === "string" ? params.agent.trim() : "";
@@ -356,11 +463,11 @@ function isExplicitReadOnlyRecoveryReview(params: Record<string, unknown>): bool
 		&& agent !== ""
 		&& /\b(?:advisor|oracle|review|reviewer)\b/i.test(agent)
 		&& RECOVERY_REVIEW_READ_ONLY_PATTERN.test(task)
-		&& !RECOVERY_REVIEW_DESTRUCTIVE_COMMAND_PATTERN.test(taskDestructiveCommandText)
+		&& !mentionsMutatingCommand(taskDestructiveCommandText)
 		&& !RECOVERY_REVIEW_MUTATION_VERB_PATTERN.test(taskMutationText)
 		&& !RECOVERY_REVIEW_DELEGATION_PATTERN.test(taskMutationText)
 		&& !RECOVERY_REVIEW_ANAPHORIC_MUTATION_PATTERN.test(taskMutationText)
-		&& !RECOVERY_REVIEW_DESTRUCTIVE_COMMAND_PATTERN.test(taskMutationText)
+		&& !mentionsMutatingCommand(taskMutationText)
 		&& !RECOVERY_REVIEW_DASH_LIVE_ACTION_PATTERN.test(taskDashLiveActionText);
 }
 
